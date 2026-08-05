@@ -1,0 +1,28 @@
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types.web_app_info import WebAppInfo
+
+def get_main_menu() -> ReplyKeyboardMarkup:
+    web_app_url = "https://elshod-smart-office.netlify.app/"
+
+    keyboard = [
+        [
+            KeyboardButton(text="📊 Excel Asboblari"),
+            KeyboardButton(text="📄 PDF Asboblari"),
+        ],
+        [
+            KeyboardButton(text="📝 Word & Hujjat"),
+            KeyboardButton(text="🔄 Tarjimon & Konvertor"),
+        ],
+        [
+            KeyboardButton(text="🛠 Qulay Vositalar"),
+            KeyboardButton(text="🤖 AI Yordamchi"),
+        ],
+        [
+            KeyboardButton(text="⏰ Eslatmalar"),
+            KeyboardButton(text="⚙️ Sozlamalar"),
+        ],
+        [
+            KeyboardButton(text="🌐 Web Ilovani ochish", web_app=WebAppInfo(url=web_app_url)),
+        ],
+    ]
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
