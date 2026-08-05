@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import sys
+import os
+from aiohttp import web
 
 from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN
@@ -33,6 +35,20 @@ from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_dail
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
 from services.database import create_table
+
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+async def start_dummy_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Dummy web server started on port {port}")
 
 
 async def main():
@@ -86,6 +102,7 @@ async def main():
     await bot.delete_webhook(drop_pending_updates=True)
 
     try:
+        await start_dummy_server()
         await dp.start_polling(bot)
     finally:
         stop_scheduler()
