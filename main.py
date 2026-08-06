@@ -39,9 +39,14 @@ from services.database import create_table
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
+async def index(request):
+    return web.FileResponse('./webapp/index.html')
+
 async def start_dummy_server():
     app = web.Application()
-    app.router.add_get("/", handle_ping)
+    app.router.add_get("/ping", handle_ping)
+    app.router.add_get("/", index)
+    app.router.add_static('/', path='./webapp', name='webapp')
     
     port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
