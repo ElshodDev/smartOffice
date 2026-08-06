@@ -1,7 +1,8 @@
 from aiogram import Router, Bot, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
 
 from config import CHANNEL_ID
 from keyboards.reply import get_main_menu
@@ -96,6 +97,19 @@ async def cmd_start(message: Message, bot: Bot):
             "Botdan to'liq foydalanish uchun kanalimizga obuna bo'ling!",
             reply_markup=get_subscription_menu(channel_url)
         )
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    # Bekor qilinadigan holat bormi yo'qmi tekshiramiz (keraksiz xabar bermaslik uchun)
+    current_state = await state.get_state()
+    if current_state:
+        await state.clear()
+    
+    await message.answer(
+        "❌ Joriy amal bekor qilindi.\n"
+        "Asosiy menyuga qaytdingiz.",
+        reply_markup=get_main_menu()
+    )
 
 @router.callback_query(F.data == "check_subscription")
 async def process_check_sub(callback_query: CallbackQuery, bot: Bot):
