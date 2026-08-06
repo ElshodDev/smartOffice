@@ -13,6 +13,10 @@ MAIN_BUTTONS = {
     "⏰ Eslatmalar",
     "⚙️ Sozlamalar",
     "🌐 Web Ilovani ochish",
+    "📋 Hisobot Yaratish",
+    "💳 Premium",
+    "🛒 Xizmatlarim",
+    "🔗 Ulashish",
     "/start"
 }
 
