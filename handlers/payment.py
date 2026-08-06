@@ -76,6 +76,23 @@ def plans_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+# ── go_premium callback (boshqa handlerlardan yo'naltirish) ──
+@router.callback_query(F.data == "go_premium")
+async def go_premium(callback: CallbackQuery):
+    await callback.answer()
+    test_note = "\n⚠️ <i>Hozir TEST rejimi — haqiqiy pul olinmaydi.</i>" if IS_TEST else ""
+    await callback.message.edit_text(
+        "💳 <b>Premium Paketlar</b>\n\n"
+        "🤖 <b>AI Yordamchi</b> — cheksiz savol\n"
+        "📋 <b>Hisobot Generator</b> — PDF + Excel\n"
+        "💎 <b>Full Premium</b> — hamma narsa\n"
+        f"{test_note}",
+        parse_mode="HTML",
+        reply_markup=plans_kb()
+    )
+
+
+
 # ── To'lov usuli tanlash ──
 def provider_kb(plan: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[

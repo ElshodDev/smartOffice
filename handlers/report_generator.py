@@ -4,7 +4,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-
+from services.subscription import is_premium
 from services.pdf_report import generate_pdf
 from services.excel_report import generate_excel
 
@@ -45,6 +45,21 @@ def format_kb():
 @router.message(F.text == "📋 Hisobot Yaratish")
 async def start_report(message: Message, state: FSMContext):
     await state.clear()
+
+    # Premium tekshiruv
+    premium = await is_premium(message.from_user.id)
+    if not premium:
+        await message.answer(
+            "📋 <b>Hisobot Yaratish — Premium xizmat</b>\n\n"
+            "Bu funksiya faqat <b>Premium</b> foydalanuvchilar uchun mavjud.\n\n"
+            "💳 Premium olish uchun asosiy menyudagi <b>\"\ud83d� Premium\"</b> tugmasini bosing.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="💳 Premium olish", callback_data="go_premium")
+            ]])
+        )
+        return
+
     await message.answer(
         "📋 <b>Hisobot Yaratish</b>\n\n"
         "Men sizning shaxsiy ma'lumotlaringizni yig'ib, chiroyli hisobot tayyorlayman.\n\n"
