@@ -4,63 +4,98 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Office Web App</title>
-    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="glass-container">
-        <header>
-            <h1 id="greeting">Salom!</h1>
-            <p>Iltimos, kerakli bo'limni tanlang</p>
-        </header>
+        <!-- ── Oddiy foydalanuvchilar qismi ── -->
+        <div id="user-view">
+            <header>
+                <h1 id="greeting">Salom!</h1>
+                <p>Iltimos, kerakli bo'limni tanlang</p>
+            </header>
 
-        <main>
-            <div class="grid-menu">
-                <div class="card" onclick="sendMessage('⏰ Eslatmalar')">
-                    <div class="icon">⏰</div>
-                    <div class="info">
-                        <h3>Eslatmalar</h3>
-                        <p>Yangi eslatma va vazifalar</p>
+            <main>
+                <div class="grid-menu">
+                    <div class="card" onclick="sendMessage('⏰ Eslatmalar')">
+                        <div class="icon">⏰</div>
+                        <div class="info">
+                            <h3>Eslatmalar</h3>
+                            <p>Yangi eslatma va vazifalar</p>
+                        </div>
+                    </div>
+
+                    <div class="card" onclick="sendMessage('📄 PDF Asboblari')">
+                        <div class="icon">📄</div>
+                        <div class="info">
+                            <h3>PDF Asboblari</h3>
+                            <p>Kesish, birlashtirish, aylantirish</p>
+                        </div>
+                    </div>
+
+                    <div class="card" onclick="sendMessage('📊 Excel Asboblari')">
+                        <div class="icon">📊</div>
+                        <div class="info">
+                            <h3>Excel Asboblari</h3>
+                            <p>Hisobotlar va ma'lumotlar</p>
+                        </div>
+                    </div>
+
+                    <div class="card" onclick="sendMessage('🔄 Tarjimon & Konvertor')">
+                        <div class="icon">🔄</div>
+                        <div class="info">
+                            <h3>Tarjimon</h3>
+                            <p>Tezkor format konvertatsiyasi</p>
+                        </div>
+                    </div>
+
+                    <div class="card ai" onclick="sendMessage('🤖 AI Yordamchi')">
+                        <div class="icon">✨</div>
+                        <div class="info">
+                            <h3>Sun'iy Intellekt</h3>
+                            <p>Kuchli Gemini orqali suhbat qiling</p>
+                        </div>
                     </div>
                 </div>
+                <button class="main-btn" onclick="closeApp()">Yopish</button>
+            </main>
+        </div>
 
-                <div class="card" onclick="sendMessage('📄 PDF Asboblari')">
-                    <div class="icon">📄</div>
-                    <div class="info">
-                        <h3>PDF Asboblari</h3>
-                        <p>Kesish, birlashtirish, aylantirish</p>
-                    </div>
-                </div>
-
-                <div class="card" onclick="sendMessage('📊 Excel Asboblari')">
-                    <div class="icon">📊</div>
-                    <div class="info">
-                        <h3>Excel Asboblari</h3>
-                        <p>Hisobotlar va ma'lumotlar vizualizatsiyasi</p>
-                    </div>
-                </div>
-
-                <div class="card" onclick="sendMessage('🔄 Tarjimon & Konvertor')">
-                    <div class="icon">🔄</div>
-                    <div class="info">
-                        <h3>Tarjimon</h3>
-                        <p>Tezkor format konvertatsiyasi</p>
-                    </div>
-                </div>
-
-                <div class="card ai" onclick="sendMessage('🤖 AI Yordamchi')">
-                    <div class="icon">✨</div>
-                    <div class="info">
-                        <h3>Sun'iy Intellekt</h3>
-                        <p>Kuchli Gemini orqali istalgan savolingizga javob oling va matnlar yarating</p>
-                    </div>
-                </div>
-            </div>
+        <!-- ── Admin qismi ── -->
+        <div id="admin-view" style="display: none;">
+            <header class="admin-header">
+                <h1>👑 Admin Panel</h1>
+                <p>Bot statistikasi va foydalanuvchilar</p>
+            </header>
             
-            <button class="main-btn" onclick="closeApp()">Yopish</button>
-        </main>
+            <main>
+                <div class="stats-card">
+                    <h2>👥 Jami Foydalanuvchilar</h2>
+                    <div class="count" id="total-users">--</div>
+                </div>
+
+                <div class="users-section">
+                    <h3>Oxirgi qo'shilganlar</h3>
+                    <div class="table-container">
+                        <table id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Ism</th>
+                                    <th>Sana</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- JS orqali to'ldiriladi -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <button class="main-btn" onclick="closeApp()">Yopish</button>
+            </main>
+        </div>
     </div>
     
     <script src="app.js"></script>

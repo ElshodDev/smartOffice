@@ -38,12 +38,25 @@ from handlers import (
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
-from middlewares.ads_middleware import AdsMiddleware
-from services.database import create_table
+from services.database import create_table, get_users_count, get_recent_users
+from config import ADMIN_ID
 from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
 
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
+
+async def api_stats(request: web.Request):
+    try:
+        user_id_str = request.query.get("user_id", "")
+        # Very basic check, in production you'd validate initData hash
+        if user_id_str != str(ADMIN_ID):
+            return web.json_response({"error": "Unauthorized"}, status=403)
+        
+        count = await get_users_count()
+        recent = await get_recent_users(50)
+        return web.json_response({"count": count, "users": recent})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 async def index(request):
     return web.FileResponse('./webapp/index.html')
@@ -51,6 +64,7 @@ async def index(request):
 async def start_dummy_server(bot):
     app = web.Application()
     app.router.add_get("/ping", handle_ping)
+    app.router.add_get("/api/stats", api_stats)
     app.router.add_get("/", index)
     app.router.add_get("/form-editor", serve_form_editor)
     app.router.add_get("/forms/{filename}", serve_form_image)
@@ -83,8 +97,6 @@ async def main():
     dp.message.middleware(ThrottlingMiddleware())
     # 2. State Clear: asosiy menyu tugmalarida qotib qolmaslik
     dp.message.middleware(StateClearMiddleware())
-    # 3. Ads Middleware: Har X xabarda reklama chiqarish
-    dp.message.middleware(AdsMiddleware())
 
     # ── Ro'yxatdan o'tkazish (Routers) ──────────────
     dp.include_router(start.router)
