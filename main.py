@@ -38,6 +38,7 @@ from handlers import (
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
+from middlewares.subscription import SubscriptionMiddleware
 from services.database import create_table, get_users_count, get_recent_users
 from config import ADMIN_ID
 from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
@@ -104,7 +105,10 @@ async def main():
     # ── Middlewarelar ────────────────────────────────
     # 1. Anti-Spam: tez-tez xabar yuborishni cheklash
     dp.message.middleware(ThrottlingMiddleware())
-    # 2. State Clear: asosiy menyu tugmalarida qotib qolmaslik
+    # 2. Kanalga a'zolikni tekshirish (majburiy obuna)
+    dp.message.middleware(SubscriptionMiddleware())
+    dp.callback_query.middleware(SubscriptionMiddleware())
+    # 3. State Clear: asosiy menyu tugmalarida qotib qolmaslik
     dp.message.middleware(StateClearMiddleware())
 
     # ── Ro'yxatdan o'tkazish (Routers) ──────────────
