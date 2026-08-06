@@ -409,6 +409,8 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
+// Vertical swipe bilan Web App yopilib ketmasligi uchun
+if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
 
 // ── State ──
 let mode = 'text';  // text | draw | erase
@@ -574,13 +576,20 @@ function getCanvasPos(e) {
     };
 }
 
-drawCanvas.addEventListener('pointerdown', startDraw);
-drawCanvas.addEventListener('pointermove', doDraw);
-drawCanvas.addEventListener('pointerup', endDraw);
-drawCanvas.addEventListener('pointercancel', endDraw);
+// {passive: false} — touch harakatida sahifa yopilmasligi uchun
+drawCanvas.addEventListener('pointerdown', startDraw, { passive: false });
+drawCanvas.addEventListener('pointermove', doDraw, { passive: false });
+drawCanvas.addEventListener('pointerup', endDraw, { passive: false });
+drawCanvas.addEventListener('pointercancel', endDraw, { passive: false });
+// Touch eventlari uchun ham alohida bloklash
+drawCanvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+drawCanvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+drawCanvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
 
 function startDraw(e) {
     if (mode === 'text') return;
+    e.preventDefault();
+    e.stopPropagation();
     isDrawing = true;
     const pos = getCanvasPos(e);
     lastX = pos.x;
@@ -713,13 +722,16 @@ function getSigPos(e) {
 }
 
 sigCanvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     sigDrawing = true;
     const p = getSigPos(e);
     sigLastX = p.x; sigLastY = p.y;
     sigCanvas.setPointerCapture(e.pointerId);
-});
+}, { passive: false });
 sigCanvas.addEventListener('pointermove', (e) => {
     if (!sigDrawing) return;
+    e.preventDefault();
     const p = getSigPos(e);
     sigCtx.beginPath();
     sigCtx.moveTo(sigLastX, sigLastY);
@@ -729,8 +741,11 @@ sigCanvas.addEventListener('pointermove', (e) => {
     sigCtx.lineCap = 'round';
     sigCtx.stroke();
     sigLastX = p.x; sigLastY = p.y;
-});
-sigCanvas.addEventListener('pointerup', () => { sigDrawing = false; });
+}, { passive: false });
+sigCanvas.addEventListener('pointerup', () => { sigDrawing = false; }, { passive: false });
+sigCanvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+sigCanvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+sigCanvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
 
 function applySignature() {
     const sigData = sigCanvas.toDataURL('image/png');
