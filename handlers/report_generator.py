@@ -52,7 +52,7 @@ async def start_report(message: Message, state: FSMContext):
         await message.answer(
             "📋 <b>Hisobot Yaratish — Premium xizmat</b>\n\n"
             "Bu funksiya faqat <b>Premium</b> foydalanuvchilar uchun mavjud.\n\n"
-            "💳 Premium olish uchun asosiy menyudagi <b>\"\ud83d� Premium\"</b> tugmasini bosing.",
+            "💳 Premium olish uchun asosiy menyudagi <b>\"💳 Premium\"</b> tugmasini bosing.",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="💳 Premium olish", callback_data="go_premium")
