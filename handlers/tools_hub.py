@@ -20,7 +20,7 @@ def get_tools_hub_menu() -> InlineKeyboardMarkup:
     ])
 
 
-@router.message(F.text == "🛠 Qulay Vositalar")
+@router.message(F.text == "🧰 Qulay Vositalar")
 async def show_tools_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(

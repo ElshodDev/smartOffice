@@ -24,7 +24,7 @@ class FormFillerStates(StatesGroup):
     waiting_for_image = State()
 
 
-@router.message(F.text == "📝 Ariza To'ldirish")
+@router.message(F.text == "✍️ Ariza & Imzo")
 async def form_filler_start(message: Message, state: FSMContext):
     await state.set_state(FormFillerStates.waiting_for_image)
     await message.answer(

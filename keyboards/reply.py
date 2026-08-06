@@ -10,11 +10,11 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="📄 PDF Asboblari"),
         ],
         [
-            KeyboardButton(text="📝 Word & Hujjat"),
+            KeyboardButton(text="📝 Word & Matn"),
             KeyboardButton(text="🔄 Tarjimon & Konvertor"),
         ],
         [
-            KeyboardButton(text="🛠 Qulay Vositalar"),
+            KeyboardButton(text="🧰 Qulay Vositalar"),
             KeyboardButton(text="🤖 AI Yordamchi"),
         ],
         [
@@ -22,8 +22,8 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="⚙️ Sozlamalar"),
         ],
         [
-            KeyboardButton(text="📝 Ariza To'ldirish"),
-            KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
+            KeyboardButton(text="✍️ Ariza & Imzo"),
+            KeyboardButton(text="📱 Mini Ilova", web_app=WebAppInfo(url=web_app_url)),
         ],
         [
             KeyboardButton(text="📞 Admin / Buyurtma"),
