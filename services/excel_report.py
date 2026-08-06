@@ -100,7 +100,7 @@ def generate_excel(data: dict) -> bytes:
     # ── Footer ──
     ws.merge_cells(f'A{current_row}:B{current_row}')
     footer = ws[f'A{current_row}']
-    footer.value = 'Ushbu hisobot smartOffice Telegram boti orqali avtomatik yaratilgan.'
+    footer.value = 'Ushbu hisobot smartOffice Telegram boti orqali avtomatik yaratilgan. Ishlab chiquvchi: @Elshod_Developer'
     footer.font = Font(name='Calibri', italic=True, size=9, color='94A3B8')
     footer.fill = PatternFill('solid', fgColor=HEADER_BG)
     footer.alignment = Alignment(horizontal='center', vertical='center')

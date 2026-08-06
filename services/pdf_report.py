@@ -28,7 +28,7 @@ class ReportPDF(FPDF):
         self.set_font('Helvetica', 'I', 8)
         self.set_text_color(148, 163, 184)
         now = datetime.now().strftime('%d.%m.%Y %H:%M')
-        self.cell(0, 10, f'smartOffice Bot  |  Yaratildi: {now}  |  Sahifa {self.page_no()}', align='C')
+        self.cell(0, 10, f'smartOffice Bot | Yaratildi: {now} | Sahifa {self.page_no()} | Ishlab chiquvchi: @Elshod_Developer', align='C')
 
 
 FIELD_LABELS = {

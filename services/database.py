@@ -13,9 +13,22 @@ async def create_table() -> None:
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 telegram_id  BIGINT  UNIQUE NOT NULL,
                 full_name    TEXT,
+                referrer_id  BIGINT,
+                usage_count  INTEGER DEFAULT 0,
                 joined_date  DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Eski bazaga ustunlarni qo'shish (agar bo'lmasa xato bermay o'tkazib yuboradi)
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN referrer_id BIGINT")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN usage_count INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
         
         # Eslatmalar jadvali
         await db.execute('''
@@ -52,14 +65,27 @@ async def create_table() -> None:
         await db.commit()
     logging.info("Database: barcha jadvallar tayyor.")
 
-async def add_user(telegram_id: int, full_name: str) -> None:
-    """Yangi foydalanuvchini bazaga qo'shadi (takroran qo'shilmaydi - IGNORE)."""
+async def add_user(telegram_id: int, full_name: str, referrer_id: int = None) -> bool:
+    """Yangi foydalanuvchini bazaga qo'shadi. Agar yangi bo'lsa True qaytaradi."""
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO users (telegram_id, full_name, joined_date) VALUES (?, ?, ?)",
-            (telegram_id, full_name, datetime.now())
-        )
+        try:
+            await db.execute(
+                "INSERT INTO users (telegram_id, full_name, referrer_id, joined_date) VALUES (?, ?, ?, ?)",
+                (telegram_id, full_name, referrer_id, datetime.now())
+            )
+            await db.commit()
+            return True
+        except aiosqlite.IntegrityError:
+            return False
+
+async def increment_usage(telegram_id: int) -> int:
+    """Foydalanuvchining usage_count qiymatini 1 ga oshiradi va yangi qiymatni qaytaradi."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE users SET usage_count = usage_count + 1 WHERE telegram_id = ?", (telegram_id,))
         await db.commit()
+        async with db.execute("SELECT usage_count FROM users WHERE telegram_id = ?", (telegram_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
 
 async def get_users_count() -> int:
     """Bazadagi jami foydalanuvchilar sonini qaytaradi."""

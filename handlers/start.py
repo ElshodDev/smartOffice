@@ -7,6 +7,7 @@ from config import CHANNEL_ID
 from keyboards.reply import get_main_menu
 from keyboards.inline import get_subscription_menu
 from services.database import add_user
+from services.subscription import activate_premium
 
 
 router = Router()
@@ -57,7 +58,31 @@ async def check_sub(bot: Bot, user_id: int) -> bool:
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot):
-    await add_user(message.from_user.id, message.from_user.full_name)
+    # Referral code parsing: /start 123456789
+    args = message.text.split()
+    referrer_id = None
+    if len(args) > 1 and args[1].isdigit():
+        referrer_id = int(args[1])
+
+    is_new = await add_user(message.from_user.id, message.from_user.full_name, referrer_id)
+
+    # Agar yangi foydalanuvchi bo'lsa va referral bilan kirgan bo'lsa (va o'zini o'zi taklif qilmagan bo'lsa)
+    if is_new and referrer_id and referrer_id != message.from_user.id:
+        # Ikkalasiga ham 3 kunlik premium beramiz
+        await activate_premium(message.from_user.id, "referral_bonus", 3)
+        await activate_premium(referrer_id, "referral_bonus", 3)
+        try:
+            await bot.send_message(
+                chat_id=referrer_id,
+                text=f"🎉 <b>Tabriklaymiz!</b>\n\nSizning havolangiz orqali do'stingiz (<a href='tg://user?id={message.from_user.id}'>{message.from_user.full_name}</a>) botga qo'shildi!\n\n"
+                     f"Sizga <b>3 kunlik Premium</b> sovg'a qilindi! 💎",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass # Agar bloklagan bo'lsa xato bermaydi
+        
+        await message.answer("🎁 <b>Maxsus havola orqali kirdingiz!</b>\nSizga <b>3 kunlik Premium</b> sovg'a qilindi! 💎", parse_mode="HTML")
+
 
     is_subscribed = await check_sub(bot, message.from_user.id)
 

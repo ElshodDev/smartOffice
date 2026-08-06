@@ -33,10 +33,12 @@ from handlers import (
     form_filler,
     report_generator,
     payment,
+    promotion,
 )
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
+from middlewares.ads_middleware import AdsMiddleware
 from services.database import create_table
 from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
 
@@ -81,6 +83,8 @@ async def main():
     dp.message.middleware(ThrottlingMiddleware())
     # 2. State Clear: asosiy menyu tugmalarida qotib qolmaslik
     dp.message.middleware(StateClearMiddleware())
+    # 3. Ads Middleware: Har X xabarda reklama chiqarish
+    dp.message.middleware(AdsMiddleware())
 
     # ── Ro'yxatdan o'tkazish (Routers) ──────────────
     dp.include_router(start.router)
@@ -108,6 +112,7 @@ async def main():
     dp.include_router(form_filler.router)
     dp.include_router(report_generator.router)
     dp.include_router(payment.router)
+    dp.include_router(promotion.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──
     dp.include_router(ai_assistant.router)
 
