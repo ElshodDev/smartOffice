@@ -36,9 +36,6 @@ def get_settings_menu() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="ℹ️ Bot haqida", callback_data="settings_about")
-        ],
-        [
-            InlineKeyboardButton(text="📞 Adminga murojaat", callback_data="settings_feedback")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
