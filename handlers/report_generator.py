@@ -57,13 +57,14 @@ def rel_hint(role: str) -> str:
     return (
         f"👨‍👩‍👧 <b>{role}</b> haqida ma'lumot kiriting:\n\n"
         "<b>Quyidagi tartibda (har biri yangi qatorda):</b>\n"
-        "<i>1-qator: F.I.Sh.\n"
+        "<i>1-qator: F.I.Sh. va Tug'ilgan yili\n"
         "2-qator: Ish joyi va lavozimi\n"
         "3-qator: Yashash manzili</i>\n\n"
         "<b>Namuna:</b>\n"
-        "<code>Abdullayev Bahodir Hamidovich\n"
+        "<code>Eshmatov Ali Toshmatovich, 1965-yil\n"
         "Pensioner\n"
-        "Toshkent sh., Yunusobod t.</code>"
+        "Toshkent sh., Yunusobod t.</code>\n\n"
+        "<i>💡 Agar ular bir nechta bo'lsa, xuddi shu tartibda pastdan qo'shib yozib ketavering.</i>"
     )
 
 
@@ -77,7 +78,7 @@ async def start_report(message: Message, state: FSMContext):
         "Standart O'zbek Obyektivkasini tayyorlayman.\n"
         "Har bir savolga javob bering. Ixtiyoriy bo'lganlarda <b>⏩</b> tugmasini bosing.\n\n"
         "👤 <b>F.I.Sh.</b> (To'liq familiya ism sharif):\n"
-        "<i>Misol: Abdullayev Elshod Mahmadali o'g'li</i>",
+        "<i>Misol: Eshmatov Toshmat Eshmatovich</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.full_name)
@@ -88,7 +89,7 @@ async def start_report(message: Message, state: FSMContext):
 @router.message(ObyektivkaStates.full_name, F.text)
 async def s01_full_name(message: Message, state: FSMContext):
     await state.update_data(full_name=message.text.strip())
-    await message.answer("✅ Saqlandi!\n\n📅 <b>Tug'ilgan yili:</b>\n<i>Misol: 08.06.2004</i>", parse_mode="HTML")
+    await message.answer("✅ Saqlandi!\n\n📅 <b>Tug'ilgan yili:</b>\n<i>Misol: 15.08.1990 y.</i>", parse_mode="HTML")
     await state.set_state(ObyektivkaStates.birth_date)
 
 
@@ -97,7 +98,7 @@ async def s02_birth_date(message: Message, state: FSMContext):
     await state.update_data(birth_date=message.text.strip())
     await message.answer(
         "✅ Saqlandi!\n\n📍 <b>Tug'ilgan joyi</b> (viloyat, tuman):\n"
-        "<i>Misol: Qashqadaryo viloyati, Qamashi tumani</i>",
+        "<i>Misol: Toshkent viloyati, Parkent tumani</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.birth_place)
@@ -136,7 +137,7 @@ async def s06_education(message: Message, state: FSMContext):
     await state.update_data(education=message.text.strip())
     await message.answer(
         "✅ Saqlandi!\n\n🏫 <b>Tamomlagan</b> (o'quv yurti, yili, bosqichi):\n"
-        "<i>Misol: 2026 y. O'zMU, bakalavr</i>",
+        "<i>Misol: 2015 y. Toshkent Davlat Iqtisodiyot Universiteti, bakalavr</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.graduated)
@@ -146,7 +147,7 @@ async def s06_education(message: Message, state: FSMContext):
 async def s07_graduated(message: Message, state: FSMContext):
     await state.update_data(graduated=message.text.strip())
     await message.answer(
-        "✅ Saqlandi!\n\n📚 <b>Ma'lumoti bo'yicha mutaxassisligi:</b>\n<i>Misol: Sun'iy intellekt</i>",
+        "✅ Saqlandi!\n\n📚 <b>Ma'lumoti bo'yicha mutaxassisligi:</b>\n<i>Misol: Iqtisodchi</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.specialty)
@@ -225,7 +226,7 @@ async def s14_deputy(message: Message, state: FSMContext):
     await message.answer(
         "✅ Saqlandi!\n\n💼 <b>MEHNAT FAOLIYATI</b>\n\n"
         "Ish joylarini quyidagi ko'rinishda yozing:\n"
-        "<i>2022-2026 — O'zMU, talaba\n2026 — h.v. — Maktab, o'qituvchi</i>\n\n"
+        "<i>2011-2015 — TDIU, talaba\n2015 — h.v. — Bank, menejer</i>\n\n"
         "<i>(Yo'q bo'lsa tugmani bosing)</i>",
         parse_mode="HTML",
         reply_markup=skip_kb()
@@ -347,7 +348,7 @@ SKIP_MAP = {
         "field": "deputy", "action": "next_optional",
         "text": (
             "✅\n\n💼 <b>MEHNAT FAOLIYATI</b>\n\n"
-            "Misol:\n<i>2022-2026 — O'zMU, talaba\n2026 — h.v. — Maktab, o'qituvchi</i>\n\n"
+            "Misol:\n<i>2011-2015 — TDIU, talaba\n2015 — h.v. — Bank, menejer</i>\n\n"
             "<i>(Yo'q bo'lsa tugmani bosing)</i>"
         ),
         "next": ObyektivkaStates.work_history

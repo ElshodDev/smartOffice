@@ -79,14 +79,11 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
 
     # ── Asosiy ma'lumotlar ─────────────────────────────────────
     # 2 ustunli maydon: chap va o'ng
-    # Foto uchun chap qism torroq bo'ladi
-    start_y = y_after_name + 5
+    start_y = y_after_name + 3
     left_x = margin
-    col_w = (photo_x - margin - 6) / 2   # Foto oldidagi bo'shliqda 2 ustun
-    label_w = 28
-    val_w = col_w - label_w
-    row_h = 12
-    row_gap = 1
+    col_w = (photo_x - margin - 6) / 2
+    row_h = 10
+    row_gap = 2
 
     # --- Qator 1: Tug'ilgan yili | Tug'ilgan joyi ---
     y = start_y
@@ -114,7 +111,7 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
         "Ma'lumoti:", data.get('education', ''),
         "Tamomlagan:", data.get('graduated', ''),
     )
-    y = max(y + row_h + row_gap, photo_y + photo_h + 5)
+    y = max(y + row_h + row_gap, photo_y + photo_h + 3)
 
     # Ajratuvchi chiziq
     pdf.set_draw_color(180, 180, 180)
@@ -133,16 +130,14 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
 
     for label, value in full_fields:
         pdf.set_xy(margin, y)
-        pdf.set_font('Helvetica', 'B', 9)
+        pdf.set_font('Helvetica', 'B', 8)
         pdf.set_text_color(60, 60, 60)
-        pdf.cell(content_w, 6, label, ln=True)
+        pdf.cell(content_w, 4, label, ln=True)
 
         pdf.set_x(margin)
         pdf.set_font('Helvetica', '', 9)
         pdf.set_text_color(20, 20, 20)
-        # Multi-cell agar matn uzun bo'lsa
-        before_y = pdf.get_y()
-        pdf.multi_cell(content_w, 5.5, str(value))
+        pdf.multi_cell(content_w, 4.5, str(value))
         y = pdf.get_y() + 2
 
     # ── MEHNAT FAOLIYATI ──────────────────────────────────────
@@ -169,18 +164,18 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
             if len(parts) == 2:
                 pdf.set_font('Helvetica', 'B', 9)
                 pdf.set_text_color(40, 40, 40)
-                pdf.cell(38, 5.5, parts[0].strip(), ln=False)
+                pdf.cell(38, 5, parts[0].strip(), ln=False)
                 pdf.set_font('Helvetica', '', 9)
                 pdf.set_text_color(20, 20, 20)
-                pdf.multi_cell(content_w - 38, 5.5, parts[1].strip())
+                pdf.multi_cell(content_w - 38, 5, parts[1].strip())
             else:
                 pdf.set_font('Helvetica', '', 9)
-                pdf.multi_cell(content_w, 5.5, line)
+                pdf.multi_cell(content_w, 5, line)
     else:
         pdf.set_xy(margin, pdf.get_y())
         pdf.set_font('Helvetica', 'I', 9)
         pdf.set_text_color(130, 130, 130)
-        pdf.cell(0, 5.5, "yo'q", ln=True)
+        pdf.cell(0, 5, "yo'q", ln=True)
 
     # ── YAQIN QARINDOSHLAR (2-sahifa) ─────────────────────────
     relatives = [
@@ -229,31 +224,50 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
             if not raw or raw == "yo'q":
                 continue
 
-            # raw ma'lumotni qatorlarga ajratish
+            # raw ma'lumotni qatorlarga ajratish va 3 tadan guruhlash (chunking)
             lines = [l.strip() for l in raw.split('\n') if l.strip()]
-            name_val = lines[0] if len(lines) > 0 else ''
-            work_val = lines[1] if len(lines) > 1 else ''
-            addr_val = lines[2] if len(lines) > 2 else ''
+            chunks = [lines[i:i+3] for i in range(0, len(lines), 3)]
+            
+            for chunk_idx, chunk in enumerate(chunks):
+                name_val = chunk[0] if len(chunk) > 0 else ''
+                work_val = chunk[1] if len(chunk) > 1 else ''
+                addr_val = chunk[2] if len(chunk) > 2 else ''
 
-            fill = (idx % 2 == 0)
-            fill_color = (241, 245, 249) if fill else (255, 255, 255)
-            pdf.set_fill_color(*fill_color)
-            pdf.set_text_color(20, 20, 20)
-            pdf.set_font('Helvetica', '', 8)
+                fill = ((idx + chunk_idx) % 2 == 0)
+                fill_color = (241, 245, 249) if fill else (255, 255, 255)
+                pdf.set_fill_color(*fill_color)
+                pdf.set_text_color(20, 20, 20)
+                pdf.set_font('Helvetica', '', 8)
 
-            row_y = pdf.get_y()
-            x_cur = margin
-            cells = [role, name_val, work_val, addr_val]
-            for val, cw in zip(cells, col_widths):
-                pdf.set_xy(x_cur, row_y)
-                pdf.multi_cell(cw, 6, str(val), border=1, fill=fill)
-                x_cur += cw
-            # Keyingi qator uchun Y ni hisoblash
-            max_h = max(
-                pdf.get_string_width(str(v)) / cw * 6 + 6
-                for v, cw in zip(cells, col_widths)
-            )
-            pdf.set_y(row_y + 6)
+                row_y = pdf.get_y()
+                x_cur = margin
+                
+                # Agar bitta qarindosh tipi (role) uchun bir nechta yozuv bo'lsa, roleni takrorlamaymiz
+                display_role = role if chunk_idx == 0 else ''
+                
+                cells = [display_role, name_val, work_val, addr_val]
+                
+                # Eng baland matn uchun balandlikni hisoblash
+                max_lines = 1
+                for val, cw in zip(cells, col_widths):
+                    # FPDF multi_cell qatorlarni avtomatik bo'ladi. Taxminiy qatorlar soni:
+                    str_w = pdf.get_string_width(str(val))
+                    lines_needed = max(1, int(str_w / (cw - 2)) + 1)
+                    if lines_needed > max_lines:
+                        max_lines = lines_needed
+                
+                row_height = max_lines * 4.5
+                
+                for val, cw in zip(cells, col_widths):
+                    pdf.set_xy(x_cur, row_y)
+                    # Rect for borders and fill
+                    pdf.rect(x_cur, row_y, cw, row_height, 'DF')
+                    # Matn joylashtirish
+                    pdf.set_xy(x_cur, row_y + (row_height - (len(str(val).split('\n')) * 4.5)) / 2)
+                    pdf.multi_cell(cw, 4.5, str(val), border=0, align='C')
+                    x_cur += cw
+                    
+                pdf.set_y(row_y + row_height)
 
     # Return as bytes
     buf = io.BytesIO()
@@ -280,29 +294,30 @@ def _draw_two_col_row(
     label1: str, val1: str,
     label2: str, val2: str,
 ):
-    """Bir qatorda 2 ta label+value chizadi."""
+    """Bir qatorda 2 ta label+value chizadi (juda zich)."""
     gap = 5   # ustunlar orasidagi bo'shliq
-    lbl_w = 30
 
     # --- Chap ustun ---
     pdf.set_xy(x, y)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_font('Helvetica', 'B', 8)
     pdf.set_text_color(60, 60, 60)
-    pdf.cell(lbl_w, row_h / 2, label1, ln=True)
-    pdf.set_xy(x, y + row_h / 2)
+    pdf.cell(col_w, 4, label1, ln=True)
+    
+    pdf.set_xy(x, y + 4)
     pdf.set_font('Helvetica', '', 9)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(col_w - gap, row_h / 2, str(val1), ln=False)
+    pdf.cell(col_w - gap, 5, str(val1), ln=False)
 
     # --- O'ng ustun ---
     x2 = x + col_w + gap
     pdf.set_xy(x2, y)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_font('Helvetica', 'B', 8)
     pdf.set_text_color(60, 60, 60)
-    pdf.cell(lbl_w, row_h / 2, label2, ln=True)
-    pdf.set_xy(x2, y + row_h / 2)
+    pdf.cell(col_w, 4, label2, ln=True)
+    
+    pdf.set_xy(x2, y + 4)
     pdf.set_font('Helvetica', '', 9)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(col_w - gap, row_h / 2, str(val2), ln=False)
+    pdf.cell(col_w - gap, 5, str(val2), ln=False)
 
     pdf.set_y(y + row_h)
