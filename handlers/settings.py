@@ -100,8 +100,7 @@ async def show_about(callback: CallbackQuery):
         f"<b>{BOT_NAME}</b> — ofis ishlarini avtomatlashtirishga "
         f"mo'ljallangan aqlli Telegram yordamchisi.\n\n"
         f"🛠 <b>Imkoniyatlar:</b>\n{features_list}\n\n"
-        f"📦 <b>Versiya:</b> {BOT_VERSION}\n"
-        f"👨‍💻 <b>Ishlab chiquvchi:</b> @Elshod_Developer\n\n"
+        f"📦 <b>Versiya:</b> {BOT_VERSION}\n\n"
         f"💡 <i>Takliflar uchun: \"📞 Adminga murojaat\" tugmasidan foydalaning.</i>"
     )
     back_btn = InlineKeyboardMarkup(inline_keyboard=[

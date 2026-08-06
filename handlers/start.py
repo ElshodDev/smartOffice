@@ -43,7 +43,7 @@ WELCOME_TEXT = (
     "⏰ <b>Eslatmalar</b> — Shaxsiy eslatmalar qo'shish\n"
     "⚙️ <b>Sozlamalar</b> — Profil, bot haqida, admin bilan aloqa\n\n"
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    f"📦 Versiya: <b>{BOT_VERSION}</b> | 👨‍💻 @Elshod_Developer"
+    f"📦 Versiya: <b>{BOT_VERSION}</b>"
 )
 
 async def check_sub(bot: Bot, user_id: int) -> bool:
