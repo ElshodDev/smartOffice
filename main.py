@@ -3,8 +3,8 @@ import logging
 import sys
 import os
 from aiohttp import web
-
 from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand, BotCommandScopeDefault, MenuButtonCommands
 from config import BOT_TOKEN
 from handlers import (
     start,
@@ -91,6 +91,15 @@ async def main():
 
     bot = Bot(token=BOT_TOKEN)
     dp  = Dispatcher()
+
+    # ── Bot buyruqlari va menyu tugmasi ─────────────────────
+    # Yangi foydalanuvchilar "/" bosishi bilan ro'yxat chiqadi
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Botni ishga tushirish / Bosh menyu"),
+        BotCommand(command="cancel", description="Joriy amalni bekor qilish"),
+    ], scope=BotCommandScopeDefault())
+    # Menu tugmasini "Buyruqlar" rejimiga o'tkazamiz
+    await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 
     # ── Middlewarelar ────────────────────────────────
     # 1. Anti-Spam: tez-tez xabar yuborishni cheklash

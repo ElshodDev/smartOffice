@@ -8,10 +8,21 @@ from datetime import datetime
 
 
 FIELD_LABELS = {
-    'full_name': 'F.I.Sh.',
-    'birth_info': 'Tug\'ilgan yili va joyi',
-    'education': 'Ma\'lumoti, mutaxassisligi',
-    'experience': 'Ish joyi, lavozimi',
+    'full_name':    'F.I.Sh.',
+    'birth_date':   "Tug'ilgan yili",
+    'birth_place':  "Tug'ilgan joyi",
+    'nationality':  'Millati',
+    'party':        'Partiyaviyligi',
+    'education':    "Ma'lumoti",
+    'graduated':    'Tamomlagan',
+    'specialty':    "Ma'lumoti bo'yicha mutaxassisligi",
+    'sci_degree':   'Ilmiy darajasi',
+    'sci_title':    'Ilmiy unvoni',
+    'languages':    'Chet tillarini biladi',
+    'military':     'Harbiy (maxsus) unvoni',
+    'awards':       'Davlat mukofotlari',
+    'deputy':       "Deputatmi?",
+    'work_history': 'Mehnat faoliyati',
 }
 
 # Colors
@@ -35,11 +46,11 @@ def generate_excel(data: dict) -> bytes:
     """Foydalanuvchi ma'lumotlaridan chiroyli Excel hisobot yaratadi."""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Hisobot"
+    ws.title = "Ma'lumotnoma"
 
     # ── Column widths ──
-    ws.column_dimensions['A'].width = 28
-    ws.column_dimensions['B'].width = 40
+    ws.column_dimensions['A'].width = 35
+    ws.column_dimensions['B'].width = 50
 
     # ── Row 1: Main Title ──
     ws.merge_cells('A1:B1')
