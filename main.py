@@ -31,6 +31,7 @@ from handlers import (
     settings,
     scheduler_tools,
     form_filler,
+    report_generator,
 )
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
@@ -102,6 +103,7 @@ async def main():
     dp.include_router(settings.router)
     dp.include_router(scheduler_tools.router)
     dp.include_router(form_filler.router)
+    dp.include_router(report_generator.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──
     dp.include_router(ai_assistant.router)
 

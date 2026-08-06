@@ -19,7 +19,7 @@ def get_word_hub_menu() -> InlineKeyboardMarkup:
     ])
 
 
-@router.message(F.text == "📝 Word & Matn")
+@router.message(F.text == "📝 Word & Hujjat")
 async def show_word_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(

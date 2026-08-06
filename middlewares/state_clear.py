@@ -6,15 +6,14 @@ MAIN_BUTTONS = {
     # Yangi 8 ta asosiy menyu tugmalari
     "📊 Excel Asboblari",
     "📄 PDF Asboblari",
-    "📝 Word & Matn",
+    "📝 Word & Hujjat",
     "🔄 Tarjimon & Konvertor",
-    "🧰 Qulay Vositalar",
+    "🛠 Qulay Vositalar",
     "🤖 AI Yordamchi",
     "⏰ Eslatmalar",
     "⚙️ Sozlamalar",
-    "✍️ Ariza & Imzo",
-    "📱 Mini Ilova",
-    "📞 Admin / Buyurtma"
+    "🌐 Web Ilovani ochish",
+    "/start"
 }
 
 class StateClearMiddleware(BaseMiddleware):

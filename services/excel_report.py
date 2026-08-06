@@ -1,0 +1,113 @@
+import io
+from openpyxl import Workbook
+from openpyxl.styles import (
+    PatternFill, Font, Alignment, Border, Side
+)
+from openpyxl.utils import get_column_letter
+from datetime import datetime
+
+
+FIELD_LABELS = {
+    'full_name': 'Ism',
+    'surname': 'Familiya',
+    'passport': 'Pasport raqami',
+    'birth_date': "Tug'ilgan sana",
+    'address': 'Manzil',
+    'phone': 'Telefon',
+}
+
+# Colors
+HEADER_BG   = '1E293B'   # Dark navy
+HEADER_FG   = 'FFFFFF'
+TITLE_BG    = '3B82F6'   # Blue
+TITLE_FG    = 'FFFFFF'
+ROW_ALT     = 'F1F5F9'   # Light gray
+ROW_NORMAL  = 'FFFFFF'
+LABEL_FG    = '475569'
+VALUE_FG    = '0F172A'
+BORDER_CLR  = 'CBD5E1'
+
+
+def _thin_border():
+    side = Side(style='thin', color=BORDER_CLR)
+    return Border(left=side, right=side, top=side, bottom=side)
+
+
+def generate_excel(data: dict) -> bytes:
+    """Foydalanuvchi ma'lumotlaridan chiroyli Excel hisobot yaratadi."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Hisobot"
+
+    # ── Column widths ──
+    ws.column_dimensions['A'].width = 28
+    ws.column_dimensions['B'].width = 40
+
+    # ── Row 1: Main Title ──
+    ws.merge_cells('A1:B1')
+    title_cell = ws['A1']
+    title_cell.value = 'smartOffice — Shaxsiy Ma\'lumotlar Hisoboti'
+    title_cell.font = Font(name='Calibri', bold=True, size=14, color=TITLE_FG)
+    title_cell.fill = PatternFill('solid', fgColor=TITLE_BG)
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 30
+
+    # ── Row 2: Date ──
+    ws.merge_cells('A2:B2')
+    date_cell = ws['A2']
+    date_cell.value = f"Yaratildi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    date_cell.font = Font(name='Calibri', italic=True, size=10, color='94A3B8')
+    date_cell.fill = PatternFill('solid', fgColor=HEADER_BG)
+    date_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[2].height = 18
+
+    # ── Row 3: Column headers ──
+    headers = ['Maydon', 'Qiymat']
+    for col, h in enumerate(headers, start=1):
+        cell = ws.cell(row=3, column=col, value=h)
+        cell.font = Font(name='Calibri', bold=True, size=11, color=HEADER_FG)
+        cell.fill = PatternFill('solid', fgColor=HEADER_BG)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = _thin_border()
+    ws.row_dimensions[3].height = 22
+
+    # ── Data rows ──
+    current_row = 4
+    for idx, (key, label) in enumerate(FIELD_LABELS.items()):
+        value = data.get(key)
+        if not value or value == '-':
+            continue
+
+        bg = ROW_ALT if idx % 2 == 0 else ROW_NORMAL
+
+        # Label cell
+        label_cell = ws.cell(row=current_row, column=1, value=label)
+        label_cell.font = Font(name='Calibri', bold=True, size=11, color=LABEL_FG)
+        label_cell.fill = PatternFill('solid', fgColor=bg)
+        label_cell.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        label_cell.border = _thin_border()
+
+        # Value cell
+        value_cell = ws.cell(row=current_row, column=2, value=str(value))
+        value_cell.font = Font(name='Calibri', size=11, color=VALUE_FG)
+        value_cell.fill = PatternFill('solid', fgColor=bg)
+        value_cell.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        value_cell.border = _thin_border()
+
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
+
+    # ── Footer ──
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    footer = ws[f'A{current_row}']
+    footer.value = 'Ushbu hisobot smartOffice Telegram boti orqali avtomatik yaratilgan.'
+    footer.font = Font(name='Calibri', italic=True, size=9, color='94A3B8')
+    footer.fill = PatternFill('solid', fgColor=HEADER_BG)
+    footer.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[current_row].height = 18
+
+    # ── Save to bytes ──
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
