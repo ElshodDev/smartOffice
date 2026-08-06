@@ -182,11 +182,85 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
         pdf.set_text_color(130, 130, 130)
         pdf.cell(0, 5.5, "yo'q", ln=True)
 
+    # ── YAQIN QARINDOSHLAR (2-sahifa) ─────────────────────────
+    relatives = [
+        ("Otasi",               data.get('rel_father',   '')),
+        ("Onasi",               data.get('rel_mother',   '')),
+        ("Turmush o'rtog'i",    data.get('rel_spouse',   '')),
+        ("Farzandlari",         data.get('rel_children', '')),
+        ("Aka-uka/Opa-singillar", data.get('rel_siblings','')),
+    ]
+    has_relatives = any(v and v != "yo'q" for _, v in relatives)
+
+    if has_relatives:
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.set_text_color(20, 20, 20)
+        pdf.set_y(14)
+        pdf.cell(0, 8, f"{full_name.upper()}", align='C', ln=True)
+
+        pdf.set_font('Helvetica', '', 9)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(0, 6, "ning yaqin qarindoshlari haqida MA'LUMOT", align='C', ln=True)
+
+        pdf.ln(3)
+        pdf.set_draw_color(180, 180, 180)
+        pdf.line(margin, pdf.get_y(), page_w - margin, pdf.get_y())
+        pdf.ln(5)
+
+        # Jadval sarlavhasi
+        col_widths = [32, 42, 42, 40]   # Jami = 156 ~ content_w
+        headers = ["Qarindoshligi", "F.I.Sh.", "Ish joyi va lavozimi", "Yashash manzili"]
+
+        hdr_y = pdf.get_y()
+        x_cur = margin
+        for i, (hdr, cw) in enumerate(zip(headers, col_widths)):
+            pdf.set_xy(x_cur, hdr_y)
+            pdf.set_fill_color(30, 41, 59)
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font('Helvetica', 'B', 8)
+            pdf.cell(cw, 8, hdr, border=1, fill=True, align='C')
+            x_cur += cw
+        pdf.ln(8)
+
+        # Jadval satrlari
+        for idx, (role, raw) in enumerate(relatives):
+            if not raw or raw == "yo'q":
+                continue
+
+            # raw ma'lumotni qatorlarga ajratish
+            lines = [l.strip() for l in raw.split('\n') if l.strip()]
+            name_val = lines[0] if len(lines) > 0 else ''
+            work_val = lines[1] if len(lines) > 1 else ''
+            addr_val = lines[2] if len(lines) > 2 else ''
+
+            fill = (idx % 2 == 0)
+            fill_color = (241, 245, 249) if fill else (255, 255, 255)
+            pdf.set_fill_color(*fill_color)
+            pdf.set_text_color(20, 20, 20)
+            pdf.set_font('Helvetica', '', 8)
+
+            row_y = pdf.get_y()
+            x_cur = margin
+            cells = [role, name_val, work_val, addr_val]
+            for val, cw in zip(cells, col_widths):
+                pdf.set_xy(x_cur, row_y)
+                pdf.multi_cell(cw, 6, str(val), border=1, fill=fill)
+                x_cur += cw
+            # Keyingi qator uchun Y ni hisoblash
+            max_h = max(
+                pdf.get_string_width(str(v)) / cw * 6 + 6
+                for v, cw in zip(cells, col_widths)
+            )
+            pdf.set_y(row_y + 6)
+
     # Return as bytes
     buf = io.BytesIO()
     buf.write(pdf.output())
     buf.seek(0)
     return buf.read()
+
 
 
 def _draw_photo_placeholder(pdf: FPDF, x, y, w, h):

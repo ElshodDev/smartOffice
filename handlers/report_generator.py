@@ -12,23 +12,31 @@ router = Router()
 
 # ── Holatlar (FSM) ──
 class ObyektivkaStates(StatesGroup):
-    full_name    = State()  # F.I.Sh.
-    birth_date   = State()  # Tug'ilgan yili
-    birth_place  = State()  # Tug'ilgan joyi
-    nationality  = State()  # Millati
-    party        = State()  # Partiyaviyligi
-    education    = State()  # Ma'lumoti (Oliy/O'rta)
-    graduated    = State()  # Tamomlagan (qayer, qachon)
-    specialty    = State()  # Mutaxassisligi
-    sci_degree   = State()  # Ilmiy darajasi
-    sci_title    = State()  # Ilmiy unvoni
-    languages    = State()  # Chet tillari
-    military     = State()  # Harbiy unvoni
-    awards       = State()  # Davlat mukofotlari
-    deputy       = State()  # Deputatmi?
-    work_history = State()  # Mehnat faoliyati
-    photo        = State()  # 3x4 fotosurat
-    choose_fmt   = State()  # Format tanlash
+    # --- Asosiy ma'lumotlar ---
+    full_name    = State()
+    birth_date   = State()
+    birth_place  = State()
+    nationality  = State()
+    party        = State()
+    education    = State()
+    graduated    = State()
+    specialty    = State()
+    sci_degree   = State()
+    sci_title    = State()
+    languages    = State()
+    military     = State()
+    awards       = State()
+    deputy       = State()
+    work_history = State()
+    # --- Qarindoshlar (2-sahifa) ---
+    rel_father   = State()   # Otasi
+    rel_mother   = State()   # Onasi
+    rel_spouse   = State()   # Turmush o'rtog'i
+    rel_children = State()   # Farzandlari
+    rel_siblings = State()   # Aka-uka / Opa-singillar
+    # --- Yakunlovchi ---
+    photo        = State()
+    choose_fmt   = State()
 
 
 # ── Tugmalar ──
@@ -47,6 +55,19 @@ def format_kb():
             InlineKeyboardButton(text="📦 Ikkalasi ham", callback_data="report_fmt_both"),
         ]
     ])
+
+# Qarindosh kiritish uchun format eslatmasi
+def rel_hint(role: str) -> str:
+    return (
+        f"👨‍👩‍👧 <b>{role}</b> haqida ma'lumot kiriting:\n\n"
+        "<b>Namuna:</b>\n"
+        "F.I.Sh.: Abdullayev Bahodir Hamidovich\n"
+        "Tug'ilgan yili va joyi: 1965, Samarqand vil.\n"
+        "Ish joyi va lavozimi: Pensioner\n"
+        "Yashash manzili: Toshkent sh., Yunusobod t.\n\n"
+        "<i>Har bir qatorni alohida-alohida yozing yoki barchasini bir xabarda yuboring. "
+        "Yo'q bo'lsa — tugmani bosing.</i>"
+    )
 
 
 # ── Boshlash ──
@@ -72,7 +93,7 @@ async def start_report(message: Message, state: FSMContext):
         "Standart O'zbek Obyektivkasini tayyorlayman.\n"
         "Har bir savolga javob bering. <i>Yo'q</i> bo'lganlarga tugmani bosing.\n\n"
         "👤 <b>F.I.Sh.</b> (To'liq familiya, ism, sharif):\n"
-        "<i>Misol: Иводуллаев Элшод Маҳаммади ўғли</i>",
+        "<i>Misol: Abdullayev Elshod Mahmadali o'g'li</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.full_name)
@@ -83,8 +104,7 @@ async def start_report(message: Message, state: FSMContext):
 async def get_full_name(message: Message, state: FSMContext):
     await state.update_data(full_name=message.text.strip())
     await message.answer(
-        "✅ Saqlandi!\n\n📅 <b>Tug'ilgan yili:</b>\n"
-        "<i>Misol: 08.06.2004</i>",
+        "✅ Saqlandi!\n\n📅 <b>Tug'ilgan yili:</b>\n<i>Misol: 08.06.2004</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.birth_date)
@@ -107,8 +127,7 @@ async def get_birth_date(message: Message, state: FSMContext):
 async def get_birth_place(message: Message, state: FSMContext):
     await state.update_data(birth_place=message.text.strip())
     await message.answer(
-        "✅ Saqlandi!\n\n🌍 <b>Millati:</b>\n"
-        "<i>Misol: o'zbek</i>",
+        "✅ Saqlandi!\n\n🌍 <b>Millati:</b>\n<i>Misol: o'zbek</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.nationality)
@@ -143,7 +162,7 @@ async def get_education(message: Message, state: FSMContext):
     await state.update_data(education=message.text.strip())
     await message.answer(
         "✅ Saqlandi!\n\n🏫 <b>Tamomlagan</b> (o'quv yurti nomi, yili, bosqichi):\n"
-        "<i>Misol: 2026 y. Mirzo Ulug'bekdagi O'zbekiston Milliy Universiteti (bakalavr)</i>",
+        "<i>Misol: 2026 y. O'zMU, bakalavr</i>",
         parse_mode="HTML"
     )
     await state.set_state(ObyektivkaStates.graduated)
@@ -243,9 +262,9 @@ async def get_deputy(message: Message, state: FSMContext):
         "✅ Saqlandi!\n\n💼 <b>MEHNAT FAOLIYATI</b>\n\n"
         "Ish joylaringizni quyidagi ko'rinishda yozing:\n"
         "<i>Yillar — Tashkilot nomi, Lavozim</i>\n\n"
-        "Misol:\n"
-        "<i>2022-2026 yy. — OMU talabasi\n"
-        "2026 y. — h.v. — 169-sonli maktab, o'qituvchi</i>",
+        "<i>Misol:\n"
+        "2022-2026 — O'zMU, talaba\n"
+        "2026 — h.v. — 169-maktab, o'qituvchi</i>",
         parse_mode="HTML",
         reply_markup=skip_kb()
     )
@@ -256,57 +275,171 @@ async def get_deputy(message: Message, state: FSMContext):
 @router.message(ObyektivkaStates.work_history, F.text)
 async def get_work_history(message: Message, state: FSMContext):
     await state.update_data(work_history=message.text.strip())
+    await ask_relatives_start(message)
+    await state.set_state(ObyektivkaStates.rel_father)
+
+
+# ── Qarindoshlar bo'limiga kirish ──
+async def ask_relatives_start(message: Message):
     await message.answer(
-        "✅ Saqlandi!\n\n📸 Endi <b>3x4 sm fotosuratingizni</b> yuboring:\n"
-        "<i>(Ixtiyoriy — o'tkazib yuborish mumkin)</i>",
-        parse_mode="HTML",
-        reply_markup=skip_kb()
+        "✅ Saqlandi!\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "👨‍👩‍👧 <b>YAQIN QARINDOSHLAR (2-sahifa)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Endi har bir yaqin qarindoshingiz haqida ma'lumot so'rayman.\n"
+        "Ma'lumot yo'q bo'lsa — <b>\"⏩ Yo'q\"</b> tugmasini bosing.\n\n"
+        "Birinchi: <b>Otangiz</b> haqida →",
+        parse_mode="HTML"
     )
-    await state.set_state(ObyektivkaStates.photo)
 
 
-# ── 16. Fotosurat ──
+# ── 16. Otasi ──
+@router.message(ObyektivkaStates.rel_father, F.text)
+async def get_rel_father_start(message: Message, state: FSMContext):
+    # bu holat trigger bo'lmasligi kerak — handler yo'q degan signal
+    pass
+
+async def _ask_rel(message: Message, state, role: str, next_state):
+    await message.answer(rel_hint(role), parse_mode="HTML", reply_markup=skip_kb())
+    await state.set_state(next_state)
+
+
+# Har bir qarindosh uchun alohida trigger — ask_rel_father → ask_rel_mother ...
+# Otasini so'rash
+@router.message(ObyektivkaStates.rel_father, F.text)
+async def noop_father(message: Message, state: FSMContext):
+    pass  # Covered by ob_skip
+
+async def send_father_question(message: Message, state: FSMContext):
+    await message.answer(rel_hint("Otasi"), parse_mode="HTML", reply_markup=skip_kb())
+    await state.set_state(ObyektivkaStates.rel_father)
+
+
+# ── Yetarli — oddiyroq yondashuv: bitta handler ketma-ket holatlar uchun ──
+# Butun qarindoshlar zanjiri: father → mother → spouse → children → siblings → photo
+
+RELATIVE_CHAIN = [
+    ("rel_father",   "Otasi",             ObyektivkaStates.rel_father),
+    ("rel_mother",   "Onasi",             ObyektivkaStates.rel_mother),
+    ("rel_spouse",   "Turmush o'rtog'i",  ObyektivkaStates.rel_spouse),
+    ("rel_children", "Farzandlari",       ObyektivkaStates.rel_children),
+    ("rel_siblings", "Aka-uka/Opa-singillar", ObyektivkaStates.rel_siblings),
+]
+
+
+def _next_relative(current_key: str):
+    """Joriy qarindosh kalitidan keyingisini qaytaradi."""
+    keys = [r[0] for r in RELATIVE_CHAIN]
+    if current_key in keys:
+        idx = keys.index(current_key)
+        if idx + 1 < len(RELATIVE_CHAIN):
+            return RELATIVE_CHAIN[idx + 1]
+    return None
+
+
+async def _save_and_advance(message_or_cb, state: FSMContext, field_key: str, value: str):
+    """Ma'lumotni saqlaydi va keyingi qarindoshga o'tadi yoki fotoga o'tadi."""
+    await state.update_data(**{field_key: value})
+    next_rel = _next_relative(field_key)
+    if next_rel:
+        nkey, nrole, nstate = next_rel
+        await state.set_state(nstate)
+        await message_or_cb.answer(rel_hint(nrole), parse_mode="HTML", reply_markup=skip_kb())
+    else:
+        # Hamma qarindoshlar tugadi → Fotoga o'tamiz
+        await message_or_cb.answer(
+            "✅ Barcha qarindoshlar saqlandi!\n\n"
+            "📸 Endi <b>3x4 sm fotosuratingizni</b> yuboring:\n"
+            "<i>(Ixtiyoriy — o'tkazib yuborish mumkin)</i>",
+            parse_mode="HTML",
+            reply_markup=skip_kb()
+        )
+        await state.set_state(ObyektivkaStates.photo)
+
+
+# ── Otasi ──
+@router.message(ObyektivkaStates.rel_father, F.text)
+async def get_rel_father(message: Message, state: FSMContext):
+    await _save_and_advance(message, state, "rel_father", message.text.strip())
+
+# ── Onasi ──
+@router.message(ObyektivkaStates.rel_mother, F.text)
+async def get_rel_mother(message: Message, state: FSMContext):
+    await _save_and_advance(message, state, "rel_mother", message.text.strip())
+
+# ── Turmush o'rtog'i ──
+@router.message(ObyektivkaStates.rel_spouse, F.text)
+async def get_rel_spouse(message: Message, state: FSMContext):
+    await _save_and_advance(message, state, "rel_spouse", message.text.strip())
+
+# ── Farzandlari ──
+@router.message(ObyektivkaStates.rel_children, F.text)
+async def get_rel_children(message: Message, state: FSMContext):
+    await _save_and_advance(message, state, "rel_children", message.text.strip())
+
+# ── Aka-uka/Opa-singillar ──
+@router.message(ObyektivkaStates.rel_siblings, F.text)
+async def get_rel_siblings(message: Message, state: FSMContext):
+    await _save_and_advance(message, state, "rel_siblings", message.text.strip())
+
+
+# ── Skip callback — barcha ixtiyoriy maydonlar uchun ──
+@router.callback_query(F.data == "ob_skip")
+async def skip_field(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("O'tkazib yuborildi", show_alert=False)
+    current = await state.get_state()
+
+    # --- Asosiy ma'lumotlar skip map ---
+    main_skip_map = {
+        ObyektivkaStates.party.state:        ("party",        ObyektivkaStates.education,   "✅\n\n🎓 <b>Ma'lumoti</b> (oliy / o'rta maxsus / o'rta):"),
+        ObyektivkaStates.sci_degree.state:   ("sci_degree",   ObyektivkaStates.sci_title,   "✅\n\n🏅 <b>Ilmiy unvoni</b> (dotsent, professor va h.k.):"),
+        ObyektivkaStates.sci_title.state:    ("sci_title",    ObyektivkaStates.languages,   "✅\n\n🌐 <b>Qaysi chet tillarini biladi:</b>"),
+        ObyektivkaStates.languages.state:    ("languages",    ObyektivkaStates.military,    "✅\n\n⭐ <b>Harbiy (maxsus) unvoni:</b>"),
+        ObyektivkaStates.military.state:     ("military",     ObyektivkaStates.awards,      "✅\n\n🏆 <b>Davlat mukofotlari bilan taqdirlangan (qanaqasi):</b>"),
+        ObyektivkaStates.awards.state:       ("awards",       ObyektivkaStates.deputy,      "✅\n\n🗳 <b>Xalq deputatimi yoki boshqa saylanadigan organlar a'zosimi?</b>"),
+        ObyektivkaStates.deputy.state:       ("deputy",       ObyektivkaStates.work_history,
+            "✅\n\n💼 <b>MEHNAT FAOLIYATI</b>\n\n"
+            "Misol:\n<i>2022-2026 — O'zMU, talaba\n2026 — h.v. — Maktab, o'qituvchi</i>"),
+        ObyektivkaStates.work_history.state: ("work_history", None, None),  # Qarindoshlarga o'tadi
+    }
+
+    if current in main_skip_map:
+        field_key, next_state, next_text = main_skip_map[current]
+        await state.update_data(**{field_key: "yo'q"})
+
+        if field_key == "work_history":
+            await state.update_data(work_history="yo'q")
+            await ask_relatives_start(callback.message)
+            first = RELATIVE_CHAIN[0]
+            await state.set_state(first[2])
+            await callback.message.answer(rel_hint(first[1]), parse_mode="HTML", reply_markup=skip_kb())
+            return
+
+        await callback.message.edit_text(next_text, parse_mode="HTML", reply_markup=skip_kb())
+        await state.set_state(next_state)
+        return
+
+    # --- Qarindoshlar skip ---
+    rel_keys = [r[0] for r in RELATIVE_CHAIN]
+    # Joriy state nomidan field_key topamiz
+    for rkey, rrole, rstate in RELATIVE_CHAIN:
+        if current == rstate.state:
+            await _save_and_advance(callback.message, state, rkey, "yo'q")
+            return
+
+    # --- Fotosurat skip ---
+    if current == ObyektivkaStates.photo.state:
+        await state.update_data(photo_file_id=None)
+        await ask_format(callback.message, state)
+        return
+
+
+# ── Fotosurat ──
 @router.message(ObyektivkaStates.photo, F.photo)
 async def get_photo(message: Message, state: FSMContext):
     photo = message.photo[-1]
     await state.update_data(photo_file_id=photo.file_id)
     await ask_format(message, state)
-
-
-# ── Skip callback ──
-@router.callback_query(F.data == "ob_skip")
-async def skip_field(callback: CallbackQuery, state: FSMContext):
-    await callback.answer("Yo'q deb belgilandi", show_alert=False)
-    current = await state.get_state()
-
-    next_map = {
-        ObyektivkaStates.party:        (None,          "party",        ObyektivkaStates.education,   "✅\n\n🎓 <b>Ma'lumoti</b> (oliy / o'rta maxsus / o'rta):"),
-        ObyektivkaStates.sci_degree:   (None,          "sci_degree",   ObyektivkaStates.sci_title,   "✅\n\n🏅 <b>Ilmiy unvoni</b> (dotsent, professor va h.k.):"),
-        ObyektivkaStates.sci_title:    (None,          "sci_title",    ObyektivkaStates.languages,   "✅\n\n🌐 <b>Qaysi chet tillarini biladi:</b>"),
-        ObyektivkaStates.languages:    (None,          "languages",    ObyektivkaStates.military,    "✅\n\n⭐ <b>Harbiy (maxsus) unvoni:</b>"),
-        ObyektivkaStates.military:     (None,          "military",     ObyektivkaStates.awards,      "✅\n\n🏆 <b>Davlat mukofotlari bilan taqdirlangan (qanaqasi):</b>"),
-        ObyektivkaStates.awards:       (None,          "awards",       ObyektivkaStates.deputy,      "✅\n\n🗳 <b>Xalq deputatimi yoki boshqa saylanadigan organlar a'zosimi?</b>"),
-        ObyektivkaStates.deputy:       (None,          "deputy",       ObyektivkaStates.work_history,"✅\n\n💼 <b>MEHNAT FAOLIYATI</b>\n\nMisol:\n<i>2022-2026 yy. — OMU talabasi\n2026 — h.v. — Maktab, o'qituvchi</i>"),
-        ObyektivkaStates.work_history: (None,          "work_history", ObyektivkaStates.photo,       "✅\n\n📸 <b>3x4 sm fotosuratingizni</b> yuboring:\n<i>(O'tkazib yuborish mumkin)</i>"),
-        ObyektivkaStates.photo:        ("photo",       "photo_file_id",None,                         None),
-    }
-
-    entry = next_map.get(current)
-    if not entry:
-        await callback.answer()
-        return
-
-    _, field_key, next_state, next_text = entry
-    await state.update_data(**{field_key: "yo'q"})
-
-    if next_state is None:
-        # Bu photo holati — formatlash bosqichiga o'tamiz
-        await state.update_data(photo_file_id=None)
-        await ask_format(callback.message, state)
-        return
-
-    await callback.message.edit_text(next_text, parse_mode="HTML", reply_markup=skip_kb())
-    await state.set_state(next_state)
 
 
 # ── Format so'rash ──
@@ -332,10 +465,9 @@ async def send_report(message: Message, state: FSMContext, fmt: str):
     photo_file_id = data.get('photo_file_id')
     if photo_file_id and photo_file_id != "yo'q":
         try:
-            bot = message.bot
-            file = await bot.get_file(photo_file_id)
-            photo_io = __import__('io').BytesIO()
-            await bot.download_file(file.file_path, photo_io)
+            file = await message.bot.get_file(photo_file_id)
+            photo_io = io.BytesIO()
+            await message.bot.download_file(file.file_path, photo_io)
             photo_bytes = photo_io.getvalue()
         except Exception as e:
             logging.warning(f"Fotosurat yuklab bo'lmadi: {e}")
@@ -367,7 +499,7 @@ async def send_report(message: Message, state: FSMContext, fmt: str):
 
     except Exception as e:
         logging.error(f"Obyektivka yaratishda xato: {e}", exc_info=True)
-        await wait_msg.edit_text("❌ Obyektivka yaratishda xatolik yuz berdi. Keyinroq urinib ko'ring.")
+        await wait_msg.edit_text("❌ Xatolik yuz berdi. Keyinroq urinib ko'ring.")
 
 
 @router.callback_query(F.data == "report_fmt_pdf", ObyektivkaStates.choose_fmt)
