@@ -30,11 +30,13 @@ from handlers import (
     ai_assistant,
     settings,
     scheduler_tools,
+    form_filler,
 )
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
 from services.database import create_table
+from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
 
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
@@ -42,18 +44,21 @@ async def handle_ping(request):
 async def index(request):
     return web.FileResponse('./webapp/index.html')
 
-async def start_dummy_server():
+async def start_dummy_server(bot):
     app = web.Application()
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/", index)
-    app.router.add_static('/', path='./webapp', name='webapp')
+    app.router.add_get("/form-editor", serve_form_editor)
+    app.router.add_get("/forms/{filename}", serve_form_image)
+    app.router.add_post("/api/form/save", receive_edited_form)
+    app.router.add_static('/static', path='./webapp', name='webapp')
     
     port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info(f"Dummy web server started on port {port}")
+    logging.info(f"Web server started on port {port}")
 
 
 async def main():
@@ -96,6 +101,7 @@ async def main():
     dp.include_router(reminders.router)
     dp.include_router(settings.router)
     dp.include_router(scheduler_tools.router)
+    dp.include_router(form_filler.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──
     dp.include_router(ai_assistant.router)
 
@@ -106,8 +112,11 @@ async def main():
     logging.info("Bot ishga tushmoqda...")
     await bot.delete_webhook(drop_pending_updates=True)
 
+    # ── Web serverga bot reference qo'yish ──
+    set_bot(bot)
+
     try:
-        await start_dummy_server()
+        await start_dummy_server(bot)
         await dp.start_polling(bot)
     finally:
         stop_scheduler()

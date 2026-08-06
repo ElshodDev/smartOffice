@@ -22,7 +22,8 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="⚙️ Sozlamalar"),
         ],
         [
-            KeyboardButton(text="🌐 Web Ilovani ochish", web_app=WebAppInfo(url=web_app_url)),
+            KeyboardButton(text="📝 Ariza To'ldirish"),
+            KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
         ],
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

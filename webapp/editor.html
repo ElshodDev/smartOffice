@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ariza Tahrirlash</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --border: rgba(255,255,255,0.1);
+            --primary: #3b82f6;
+            --secondary: #8b5cf6;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ── TOP TOOLBAR ── */
+        #toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            flex-shrink: 0;
+            scrollbar-width: none;
+        }
+        #toolbar::-webkit-scrollbar { display: none; }
+
+        .tool-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+            color: var(--text);
+            font-size: 11px;
+        }
+        .tool-btn span.icon { font-size: 18px; }
+        .tool-btn:hover, .tool-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        .tool-btn.danger:hover, .tool-btn.danger.active {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+        .tool-btn.success:hover {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        .sep {
+            width: 1px;
+            height: 36px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        /* ── CANVAS AREA ── */
+        #canvas-wrapper {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background: #1a1a2e;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #base-image {
+            display: block;
+            max-width: 100%;
+            border-radius: 8px;
+        }
+
+        #draw-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        /* ── TEXT OVERLAYS ── */
+        .text-overlay {
+            position: absolute;
+            cursor: move;
+            padding: 2px 4px;
+            background: rgba(255,255,255,0.9);
+            color: #000;
+            border: 2px dashed transparent;
+            border-radius: 4px;
+            font-family: 'Times New Roman', serif;
+            min-width: 30px;
+            min-height: 20px;
+            z-index: 10;
+            touch-action: none;
+        }
+        .text-overlay:focus,
+        .text-overlay.selected {
+            border-color: var(--primary);
+            outline: none;
+            background: rgba(255,255,255,0.95);
+        }
+        .text-overlay .delete-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 11;
+        }
+        .text-overlay.selected .delete-btn {
+            display: flex;
+        }
+
+        /* ── SIGNATURE MODAL ── */
+        #sig-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #sig-modal.open { display: flex; }
+        #sig-box {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+        #sig-box h3 { margin-bottom: 12px; font-size: 16px; }
+        #sig-canvas {
+            background: white;
+            border-radius: 8px;
+            width: 100%;
+            height: 150px;
+            touch-action: none;
+            cursor: crosshair;
+        }
+        .sig-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .sig-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #sig-clear { background: rgba(255,255,255,0.1); color: var(--text); }
+        #sig-apply { background: var(--primary); color: white; }
+        #sig-cancel { background: rgba(255,255,255,0.05); color: var(--muted); }
+
+        /* ── COLOR PICKER ── */
+        #color-picker-wrap {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 90;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 80px;
+        }
+        #color-picker-wrap.open { display: flex; }
+        .color-panel {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            max-width: 300px;
+        }
+        .color-dot {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: transform 0.15s;
+        }
+        .color-dot:hover { transform: scale(1.2); }
+        .color-dot.selected { border-color: white; }
+
+        /* ── FONT SIZE ── */
+        #font-controls {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 90;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 80px;
+        }
+        #font-controls.open { display: flex; }
+        .font-panel {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 240px;
+        }
+        .font-panel label { font-size: 13px; color: var(--muted); }
+        .font-panel input[type=range] { width: 100%; accent-color: var(--primary); }
+        .font-size-val { font-size: 18px; font-weight: 700; text-align: center; }
+        .font-panel select {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 6px;
+            font-size: 14px;
+        }
+
+        /* ── BOTTOM SAVE BAR ── */
+        #save-bar {
+            padding: 10px 16px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        #save-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(59,130,246,0.4);
+        }
+        #save-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ── LOADING ── */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 200;
+        }
+        #loading .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading p { color: var(--muted); font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading">
+    <div class="spinner"></div>
+    <p>Ariza yuklanmoqda...</p>
+</div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+    <button class="tool-btn active" id="btn-text" onclick="setMode('text')">
+        <span class="icon">✍️</span>Matn
+    </button>
+    <button class="tool-btn" id="btn-date" onclick="insertDate()">
+        <span class="icon">📅</span>Sana
+    </button>
+    <button class="tool-btn" id="btn-sign" onclick="openSignature()">
+        <span class="icon">🖊️</span>Imzo
+    </button>
+    <div class="sep"></div>
+    <button class="tool-btn" id="btn-draw" onclick="setMode('draw')">
+        <span class="icon">✏️</span>Chiz
+    </button>
+    <button class="tool-btn" id="btn-erase" onclick="setMode('erase')">
+        <span class="icon">⬜</span>O'chir
+    </button>
+    <div class="sep"></div>
+    <button class="tool-btn" id="btn-color" onclick="openColorPicker()">
+        <span class="icon" id="color-icon">🎨</span>Rang
+    </button>
+    <button class="tool-btn" id="btn-font" onclick="openFontControls()">
+        <span class="icon">🔤</span>Shrift
+    </button>
+    <div class="sep"></div>
+    <button class="tool-btn danger" onclick="undoLast()">
+        <span class="icon">↩️</span>Bekor
+    </button>
+    <button class="tool-btn danger" onclick="clearAll()">
+        <span class="icon">🗑️</span>Tozala
+    </button>
+</div>
+
+<!-- Canvas area -->
+<div id="canvas-wrapper">
+    <div id="canvas-container">
+        <img id="base-image" alt="Ariza rasmi">
+        <canvas id="draw-canvas"></canvas>
+    </div>
+</div>
+
+<!-- Save bar -->
+<div id="save-bar">
+    <button id="save-btn" onclick="saveAndSend()">📤 Saqlash va Yuborish</button>
+</div>
+
+<!-- Signature Modal -->
+<div id="sig-modal">
+    <div id="sig-box">
+        <h3>🖊️ Imzongizni chekib qo'ying</h3>
+        <canvas id="sig-canvas" width="360" height="150"></canvas>
+        <div class="sig-actions">
+            <button id="sig-cancel" onclick="closeSignature()">Bekor</button>
+            <button id="sig-clear" onclick="clearSignature()">🗑️ Tozala</button>
+            <button id="sig-apply" onclick="applySignature()">✅ Qo'yish</button>
+        </div>
+    </div>
+</div>
+
+<!-- Color Picker -->
+<div id="color-picker-wrap" onclick="closeColorPicker()">
+    <div class="color-panel" onclick="event.stopPropagation()">
+        <!-- Colors generated by JS -->
+    </div>
+</div>
+
+<!-- Font Controls -->
+<div id="font-controls" onclick="closeFontControls()">
+    <div class="font-panel" onclick="event.stopPropagation()">
+        <label>Shrift o'lchami</label>
+        <div class="font-size-val" id="font-size-display">16px</div>
+        <input type="range" id="font-size-range" min="8" max="48" value="16"
+               oninput="updateFontSize(this.value)">
+        <label>Shrift turi</label>
+        <select id="font-family-select" onchange="updateFontFamily(this.value)">
+            <option value="'Times New Roman', serif">Times New Roman (Rasmiy)</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="'Courier New', monospace">Courier New (Terilgan)</option>
+            <option value="Georgia, serif">Georgia</option>
+        </select>
+        <button onclick="closeFontControls()" style="padding:8px;background:var(--primary);border:none;border-radius:8px;color:white;cursor:pointer;">Tayyor</button>
+    </div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.expand();
+tg.enableClosingConfirmation();
+
+// ── State ──
+let mode = 'text';  // text | draw | erase
+let currentColor = '#000000';
+let currentFontSize = 16;
+let currentFontFamily = "'Times New Roman', serif";
+let isDrawing = false;
+let lastX = 0, lastY = 0;
+let history = [];
+let textOverlays = [];
+let signatureDataUrl = null;
+let imgFilename = '';
+let chatId = null;
+
+// ── Init ──
+const tgUser = tg.initDataUnsafe?.user;
+if (tgUser) chatId = tgUser.id;
+
+const urlParams = new URLSearchParams(window.location.search);
+imgFilename = urlParams.get('img') || '';
+
+const baseImage = document.getElementById('base-image');
+const drawCanvas = document.getElementById('draw-canvas');
+const ctx = drawCanvas.getContext('2d');
+const container = document.getElementById('canvas-container');
+const loading = document.getElementById('loading');
+
+// Load image
+baseImage.onload = () => {
+    drawCanvas.width = baseImage.naturalWidth;
+    drawCanvas.height = baseImage.naturalHeight;
+    drawCanvas.style.width = baseImage.offsetWidth + 'px';
+    drawCanvas.style.height = baseImage.offsetHeight + 'px';
+    saveHistoryState();
+    loading.style.display = 'none';
+};
+baseImage.onerror = () => {
+    loading.innerHTML = '<p style="color:#ef4444">❌ Rasm yuklanmadi. Qaytadan urinib ko\'ring.</p>';
+};
+baseImage.src = `/forms/${imgFilename}`;
+
+window.addEventListener('resize', () => {
+    drawCanvas.style.width = baseImage.offsetWidth + 'px';
+    drawCanvas.style.height = baseImage.offsetHeight + 'px';
+});
+
+// ── Mode switch ──
+function setMode(m) {
+    mode = m;
+    ['btn-text','btn-draw','btn-erase'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+    });
+    document.getElementById(`btn-${m}`).classList.add('active');
+    drawCanvas.style.cursor = m === 'text' ? 'text' : 'crosshair';
+    deselectAll();
+}
+
+// ── Scale helper ──
+function getScale() {
+    return baseImage.naturalWidth / baseImage.offsetWidth;
+}
+
+// ── Canvas click → add text ──
+drawCanvas.addEventListener('click', (e) => {
+    if (mode !== 'text') return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    addTextAt(x, y);
+});
+
+function addTextAt(x, y, value='') {
+    const div = document.createElement('div');
+    div.className = 'text-overlay';
+    div.contentEditable = true;
+    div.style.left = x + 'px';
+    div.style.top = y + 'px';
+    div.style.fontSize = currentFontSize + 'px';
+    div.style.fontFamily = currentFontFamily;
+    div.style.color = currentColor;
+    div.innerText = value;
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.innerText = '×';
+    delBtn.onclick = (e) => { e.stopPropagation(); div.remove(); };
+    div.appendChild(delBtn);
+
+    // Drag
+    makeDraggable(div);
+
+    div.addEventListener('focus', () => selectOverlay(div));
+    div.addEventListener('blur', deselectAll);
+
+    container.appendChild(div);
+    textOverlays.push(div);
+    div.focus();
+
+    // Place cursor at end
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(div);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function selectOverlay(el) {
+    deselectAll();
+    el.classList.add('selected');
+}
+
+function deselectAll() {
+    document.querySelectorAll('.text-overlay').forEach(el => {
+        el.classList.remove('selected');
+    });
+}
+
+function makeDraggable(el) {
+    let startX, startY, startLeft, startTop;
+    let isDragging = false;
+
+    el.addEventListener('pointerdown', (e) => {
+        if (e.target.classList.contains('delete-btn')) return;
+        if (el.classList.contains('selected') && el.contentEditable === 'true') return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = parseInt(el.style.left) || 0;
+        startTop = parseInt(el.style.top) || 0;
+        el.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+
+    el.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        el.style.left = (startLeft + dx) + 'px';
+        el.style.top = (startTop + dy) + 'px';
+    });
+
+    el.addEventListener('pointerup', () => { isDragging = false; });
+}
+
+// ── Insert today's date ──
+function insertDate() {
+    const now = new Date();
+    const dateStr = `${now.getDate().toString().padStart(2,'0')}.${(now.getMonth()+1).toString().padStart(2,'0')}.${now.getFullYear()}`;
+    const rect = container.getBoundingClientRect();
+    addTextAt(rect.width / 2 - 40, 60, dateStr);
+}
+
+// ── Drawing ──
+function getCanvasPos(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const scale = getScale();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (clientX - rect.left) * scale,
+        y: (clientY - rect.top) * scale
+    };
+}
+
+drawCanvas.addEventListener('pointerdown', startDraw);
+drawCanvas.addEventListener('pointermove', doDraw);
+drawCanvas.addEventListener('pointerup', endDraw);
+drawCanvas.addEventListener('pointercancel', endDraw);
+
+function startDraw(e) {
+    if (mode === 'text') return;
+    isDrawing = true;
+    const pos = getCanvasPos(e);
+    lastX = pos.x;
+    lastY = pos.y;
+    saveHistoryState();
+    drawCanvas.setPointerCapture(e.pointerId);
+}
+
+function doDraw(e) {
+    if (!isDrawing || mode === 'text') return;
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(pos.x, pos.y);
+
+    if (mode === 'draw') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = 2 * getScale();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+    } else if (mode === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 20 * getScale();
+        ctx.lineCap = 'round';
+    }
+
+    ctx.stroke();
+    lastX = pos.x;
+    lastY = pos.y;
+}
+
+function endDraw() {
+    if (!isDrawing) return;
+    isDrawing = false;
+    ctx.globalCompositeOperation = 'source-over';
+}
+
+// ── History ──
+function saveHistoryState() {
+    history.push(ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+    if (history.length > 20) history.shift();
+}
+
+function undoLast() {
+    if (history.length > 1) {
+        history.pop();
+        ctx.putImageData(history[history.length - 1], 0, 0);
+    }
+}
+
+function clearAll() {
+    if (!confirm('Barcha tahrirlashlarni o\'chirmoqchimisiz?')) return;
+    ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    document.querySelectorAll('.text-overlay').forEach(el => el.remove());
+    textOverlays = [];
+    history = [];
+    saveHistoryState();
+}
+
+// ── Color Picker ──
+const COLORS = [
+    '#000000','#1e293b','#3b82f6','#8b5cf6','#ef4444',
+    '#f59e0b','#22c55e','#ec4899','#06b6d4','#ffffff',
+    '#64748b','#334155','#1d4ed8','#7c3aed','#dc2626',
+];
+
+const colorPanel = document.querySelector('.color-panel');
+COLORS.forEach(c => {
+    const dot = document.createElement('div');
+    dot.className = 'color-dot' + (c === currentColor ? ' selected' : '');
+    dot.style.background = c;
+    dot.style.border = c === '#ffffff' ? '2px solid #64748b' : '';
+    dot.onclick = () => {
+        currentColor = c;
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+        dot.classList.add('selected');
+        closeColorPicker();
+        // Update selected text overlay color
+        document.querySelectorAll('.text-overlay.selected').forEach(el => {
+            el.style.color = c;
+        });
+    };
+    colorPanel.appendChild(dot);
+});
+
+function openColorPicker() { document.getElementById('color-picker-wrap').classList.add('open'); }
+function closeColorPicker() { document.getElementById('color-picker-wrap').classList.remove('open'); }
+function openFontControls() { document.getElementById('font-controls').classList.add('open'); }
+function closeFontControls() { document.getElementById('font-controls').classList.remove('open'); }
+
+function updateFontSize(val) {
+    currentFontSize = parseInt(val);
+    document.getElementById('font-size-display').innerText = val + 'px';
+    document.querySelectorAll('.text-overlay.selected').forEach(el => {
+        el.style.fontSize = val + 'px';
+    });
+}
+
+function updateFontFamily(val) {
+    currentFontFamily = val;
+    document.querySelectorAll('.text-overlay.selected').forEach(el => {
+        el.style.fontFamily = val;
+    });
+}
+
+// ── Signature ──
+const sigCanvas = document.getElementById('sig-canvas');
+const sigCtx = sigCanvas.getContext('2d');
+let sigDrawing = false;
+let sigLastX = 0, sigLastY = 0;
+
+function openSignature() {
+    document.getElementById('sig-modal').classList.add('open');
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+}
+function closeSignature() { document.getElementById('sig-modal').classList.remove('open'); }
+function clearSignature() { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); }
+
+function getSigPos(e) {
+    const rect = sigCanvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (clientX - rect.left) * (sigCanvas.width / rect.width),
+        y: (clientY - rect.top) * (sigCanvas.height / rect.height)
+    };
+}
+
+sigCanvas.addEventListener('pointerdown', (e) => {
+    sigDrawing = true;
+    const p = getSigPos(e);
+    sigLastX = p.x; sigLastY = p.y;
+    sigCanvas.setPointerCapture(e.pointerId);
+});
+sigCanvas.addEventListener('pointermove', (e) => {
+    if (!sigDrawing) return;
+    const p = getSigPos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(sigLastX, sigLastY);
+    sigCtx.lineTo(p.x, p.y);
+    sigCtx.strokeStyle = '#000';
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+    sigCtx.stroke();
+    sigLastX = p.x; sigLastY = p.y;
+});
+sigCanvas.addEventListener('pointerup', () => { sigDrawing = false; });
+
+function applySignature() {
+    const sigData = sigCanvas.toDataURL('image/png');
+    const img = new Image();
+    img.onload = () => {
+        const el = document.createElement('img');
+        el.src = sigData;
+        el.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:160px;cursor:move;z-index:10;';
+        makeDraggable(el);
+        // Resize handle
+        el.addEventListener('click', () => {
+            el.style.border = '2px dashed #3b82f6';
+        });
+        container.appendChild(el);
+        closeSignature();
+    };
+    img.src = sigData;
+}
+
+// ── Save & Send ──
+async function saveAndSend() {
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.innerText = '⏳ Saqlanmoqda...';
+
+    try {
+        // Create final merged canvas
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = drawCanvas.width;
+        finalCanvas.height = drawCanvas.height;
+        const fCtx = finalCanvas.getContext('2d');
+
+        // 1. Draw base image
+        fCtx.drawImage(baseImage, 0, 0, finalCanvas.width, finalCanvas.height);
+        // 2. Draw canvas layer (pen drawings)
+        fCtx.drawImage(drawCanvas, 0, 0);
+
+        // 3. Draw text overlays and signature images
+        const scale = getScale();
+        const containerRect = container.getBoundingClientRect();
+        const imgRect = baseImage.getBoundingClientRect();
+        const offsetX = imgRect.left - containerRect.left;
+        const offsetY = imgRect.top - containerRect.top;
+
+        const allOverlays = container.querySelectorAll('.text-overlay, img[style*="position:absolute"]');
+        for (const el of allOverlays) {
+            const left = parseFloat(el.style.left) || 0;
+            const top = parseFloat(el.style.top) || 0;
+            const realX = (left - offsetX) * scale;
+            const realY = (top - offsetY) * scale;
+
+            if (el.tagName === 'DIV') {
+                // Text overlay
+                const text = el.innerText.trim();
+                if (!text) continue;
+                const fs = parseFloat(el.style.fontSize) * scale;
+                fCtx.font = `${fs}px ${el.style.fontFamily || 'Times New Roman'}`;
+                fCtx.fillStyle = el.style.color || '#000';
+                fCtx.fillText(text, realX, realY + fs);
+            } else if (el.tagName === 'IMG') {
+                // Signature image
+                const w = el.offsetWidth * scale;
+                const h = el.offsetHeight * scale;
+                fCtx.drawImage(el, realX, realY, w, h);
+            }
+        }
+
+        const imageDataUrl = finalCanvas.toDataURL('image/png');
+
+        // Send to server
+        const resp = await fetch('/api/form/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                image: imageDataUrl,
+                filename: imgFilename
+            })
+        });
+
+        const result = await resp.json();
+        if (result.ok) {
+            tg.showAlert('✅ Ariza muvaffaqiyatli yuborildi!', () => {
+                tg.close();
+            });
+        } else {
+            throw new Error(result.error || 'Server xatosi');
+        }
+
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerText = '📤 Saqlash va Yuborish';
+        tg.showAlert('❌ Xatolik: ' + err.message);
+    }
+}
+</script>
+</body>
+</html>
