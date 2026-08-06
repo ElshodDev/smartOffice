@@ -28,6 +28,9 @@ def get_main_menu() -> ReplyKeyboardMarkup:
         [
             KeyboardButton(text="📋 Hisobot Yaratish"),
             KeyboardButton(text="📞 Admin / Buyurtma"),
+        ],
+        [
+            KeyboardButton(text="💳 Premium"),
         ]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

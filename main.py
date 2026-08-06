@@ -32,6 +32,7 @@ from handlers import (
     scheduler_tools,
     form_filler,
     report_generator,
+    payment,
 )
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
@@ -52,6 +53,8 @@ async def start_dummy_server(bot):
     app.router.add_get("/form-editor", serve_form_editor)
     app.router.add_get("/forms/{filename}", serve_form_image)
     app.router.add_post("/api/form/save", receive_edited_form)
+    app.router.add_post("/click/webhook", payment.click_webhook)
+    app.router.add_post("/payme/webhook", payment.payme_webhook)
     app.router.add_static('/static', path='./webapp', name='webapp')
     
     port = int(os.environ.get("PORT", 10000))
@@ -104,6 +107,7 @@ async def main():
     dp.include_router(scheduler_tools.router)
     dp.include_router(form_filler.router)
     dp.include_router(report_generator.router)
+    dp.include_router(payment.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──
     dp.include_router(ai_assistant.router)
 

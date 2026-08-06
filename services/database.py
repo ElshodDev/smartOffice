@@ -27,8 +27,30 @@ async def create_table() -> None:
                 is_done INTEGER DEFAULT 0
             )
         ''')
+        # Obunalar jadvali (premium)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                user_id     BIGINT PRIMARY KEY,
+                plan        TEXT DEFAULT 'free',
+                expires_at  DATETIME
+            )
+        ''')
+
+        # To'lovlar jadvali
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         BIGINT NOT NULL,
+                amount          INTEGER NOT NULL,
+                plan            TEXT,
+                provider        TEXT,
+                transaction_id  TEXT UNIQUE,
+                status          TEXT DEFAULT 'pending',
+                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         await db.commit()
-    logging.info("Database: 'users' jadvali tayyor.")
+    logging.info("Database: barcha jadvallar tayyor.")
 
 async def add_user(telegram_id: int, full_name: str) -> None:
     """Yangi foydalanuvchini bazaga qo'shadi (takroran qo'shilmaydi - IGNORE)."""
