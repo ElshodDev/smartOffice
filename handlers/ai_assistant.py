@@ -43,7 +43,7 @@ async def start_ai_chat(message: Message, state: FSMContext):
     )
     await state.set_state(AIStates.chatting)
 
-@router.message(F.text)
+@router.message(AIStates.chatting, F.text)
 async def process_ai_message(message: Message, state: FSMContext):
     # Komandalarni va menyu tugmalarini ushlamasligi uchun tekshiramiz
     if message.text.startswith('/'):
