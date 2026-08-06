@@ -19,7 +19,7 @@ class ReportPDF(FPDF):
         self.set_font('Helvetica', '', 10)
         self.set_text_color(148, 163, 184)
         self.set_y(20)
-        self.cell(0, 8, 'Shaxsiy Ma\'lumotlar Hisoboti', align='C')
+        self.cell(0, 8, 'MA\'LUMOTNOMA (OBYEKTIVKA)', align='C')
 
         self.ln(20)
 
@@ -32,12 +32,10 @@ class ReportPDF(FPDF):
 
 
 FIELD_LABELS = {
-    'full_name': 'Ism',
-    'surname': 'Familiya',
-    'passport': 'Pasport raqami',
-    'birth_date': 'Tug\'ilgan sana',
-    'address': 'Manzil',
-    'phone': 'Telefon',
+    'full_name': 'F.I.Sh.',
+    'birth_info': 'Tug\'ilgan yili va joyi',
+    'education': 'Ma\'lumoti, mutaxassisligi',
+    'experience': 'Ish joyi, lavozimi',
 }
 
 
@@ -50,7 +48,7 @@ def generate_pdf(data: dict) -> bytes:
     pdf.set_font('Helvetica', 'B', 16)
     pdf.set_text_color(30, 41, 59)
     pdf.ln(5)
-    pdf.cell(0, 12, 'Shaxsiy Ma\'lumotlar', align='C')
+    pdf.cell(0, 12, 'MA\'LUMOTNOMA', align='C')
     pdf.ln(14)
 
     # ── Divider ──

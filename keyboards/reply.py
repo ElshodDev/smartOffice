@@ -26,7 +26,7 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
         ],
         [
-            KeyboardButton(text="📋 Hisobot Yaratish"),
+            KeyboardButton(text="📋 Obyektivka Yaratish"),
             KeyboardButton(text="📞 Admin / Buyurtma"),
         ],
         [

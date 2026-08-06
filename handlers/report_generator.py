@@ -11,13 +11,11 @@ from services.excel_report import generate_excel
 router = Router()
 
 # ── Holatlar (FSM) ──
-class ReportStates(StatesGroup):
+class ObyektivkaStates(StatesGroup):
     full_name   = State()
-    surname     = State()
-    passport    = State()
-    birth_date  = State()
-    address     = State()
-    phone       = State()
+    birth_info  = State()
+    education   = State()
+    experience  = State()
     choose_fmt  = State()
 
 
@@ -42,7 +40,7 @@ def format_kb():
 
 
 # ── Boshlash ──
-@router.message(F.text == "📋 Hisobot Yaratish")
+@router.message(F.text == "📋 Obyektivka Yaratish")
 async def start_report(message: Message, state: FSMContext):
     await state.clear()
 
@@ -50,7 +48,7 @@ async def start_report(message: Message, state: FSMContext):
     premium = await is_premium(message.from_user.id)
     if not premium:
         await message.answer(
-            "📋 <b>Hisobot Yaratish — Premium xizmat</b>\n\n"
+            "📋 <b>Obyektivka Yaratish — Premium xizmat</b>\n\n"
             "Bu funksiya faqat <b>Premium</b> foydalanuvchilar uchun mavjud.\n\n"
             "💳 Premium olish uchun asosiy menyudagi <b>\"💳 Premium\"</b> tugmasini bosing.",
             parse_mode="HTML",
@@ -61,135 +59,71 @@ async def start_report(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        "📋 <b>Hisobot Yaratish</b>\n\n"
-        "Men sizning shaxsiy ma'lumotlaringizni yig'ib, chiroyli hisobot tayyorlayman.\n\n"
-        "👤 Avval <b>ismingizni</b> kiriting:",
+        "📋 <b>Obyektivka Yaratish (Qisqacha)</b>\n\n"
+        "Men sizning asosiy ma'lumotlaringizni yig'ib, chiroyli Ma'lumotnoma tayyorlayman.\n\n"
+        "👤 Avval to'liq <b>F.I.Sh.</b> (Familiya Ism Sharifingizni) kiriting:",
         parse_mode="HTML"
     )
-    await state.set_state(ReportStates.full_name)
+    await state.set_state(ObyektivkaStates.full_name)
 
 
-# ── Ism ──
-@router.message(ReportStates.full_name, F.text)
+# ── F.I.Sh ──
+@router.message(ObyektivkaStates.full_name, F.text)
 async def get_full_name(message: Message, state: FSMContext):
     await state.update_data(full_name=message.text.strip())
     await message.answer(
-        "✅ Ism saqlandi!\n\n👤 Endi <b>familiyangizni</b> kiriting:",
+        "✅ Saqlandi!\n\n📅 <b>Tug'ilgan sanangiz va joyingizni</b> kiriting:\n"
+        "<i>(Misol: 15.03.1990, Toshkent shahri)</i>",
         parse_mode="HTML"
     )
-    await state.set_state(ReportStates.surname)
+    await state.set_state(ObyektivkaStates.birth_info)
 
 
-# ── Familiya ──
-@router.message(ReportStates.surname, F.text)
-async def get_surname(message: Message, state: FSMContext):
-    await state.update_data(surname=message.text.strip())
+# ── Tug'ilgan sana va joy ──
+@router.message(ObyektivkaStates.birth_info, F.text)
+async def get_birth_info(message: Message, state: FSMContext):
+    await state.update_data(birth_info=message.text.strip())
     await message.answer(
-        "✅ Familiya saqlandi!\n\n🪪 <b>Pasport raqamingizni</b> kiriting:\n"
-        "<i>(Ixtiyoriy — o'tkazib yuborish mumkin)</i>",
-        parse_mode="HTML",
-        reply_markup=skip_kb()
+        "✅ Saqlandi!\n\n🎓 <b>Ma'lumotingiz, mutaxassisligingiz va qayerda o'qiganingizni</b> kiriting:\n"
+        "<i>(Misol: Oliy, Falsafa, Toshkent Davlat Universiteti (2000-yil))</i>",
+        parse_mode="HTML"
     )
-    await state.set_state(ReportStates.passport)
+    await state.set_state(ObyektivkaStates.education)
 
 
-# ── Pasport ──
-@router.message(ReportStates.passport, F.text)
-async def get_passport(message: Message, state: FSMContext):
-    await state.update_data(passport=message.text.strip())
+# ── Ma'lumoti ──
+@router.message(ObyektivkaStates.education, F.text)
+async def get_education(message: Message, state: FSMContext):
+    await state.update_data(education=message.text.strip())
     await message.answer(
-        "✅ Pasport saqlandi!\n\n📅 <b>Tug'ilgan sanangizni</b> kiriting:\n"
-        "<i>Misol: 15.03.1990  (Ixtiyoriy)</i>",
-        parse_mode="HTML",
-        reply_markup=skip_kb()
+        "✅ Saqlandi!\n\n💼 <b>Hozirgi ish joyingiz va lavozimingizni</b> kiriting:\n"
+        "<i>(Misol: \"Smart Office\" MChJ, Bosh menejer)</i>",
+        parse_mode="HTML"
     )
-    await state.set_state(ReportStates.birth_date)
+    await state.set_state(ObyektivkaStates.experience)
 
 
-# ── Tug'ilgan sana ──
-@router.message(ReportStates.birth_date, F.text)
-async def get_birth_date(message: Message, state: FSMContext):
-    await state.update_data(birth_date=message.text.strip())
-    await message.answer(
-        "✅ Sana saqlandi!\n\n📍 <b>Manzilingizni</b> kiriting:\n"
-        "<i>Misol: Toshkent sh., Chilonzor t.  (Ixtiyoriy)</i>",
-        parse_mode="HTML",
-        reply_markup=skip_kb()
-    )
-    await state.set_state(ReportStates.address)
-
-
-# ── Manzil ──
-@router.message(ReportStates.address, F.text)
-async def get_address(message: Message, state: FSMContext):
-    await state.update_data(address=message.text.strip())
-    await message.answer(
-        "✅ Manzil saqlandi!\n\n📞 <b>Telefon raqamingizni</b> kiriting:\n"
-        "<i>Misol: +998901234567  (Ixtiyoriy)</i>",
-        parse_mode="HTML",
-        reply_markup=skip_kb()
-    )
-    await state.set_state(ReportStates.phone)
-
-
-# ── Telefon ──
-@router.message(ReportStates.phone, F.text)
-async def get_phone(message: Message, state: FSMContext):
-    await state.update_data(phone=message.text.strip())
+# ── Ish joyi ──
+@router.message(ObyektivkaStates.experience, F.text)
+async def get_experience(message: Message, state: FSMContext):
+    await state.update_data(experience=message.text.strip())
     await ask_format(message, state)
 
 
 # ── Skip callback ──
 @router.callback_query(F.data == "report_skip")
 async def skip_field(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    current = await state.get_state()
-
-    # Joriy holat bo'yicha keyingisiga o'tamiz
-    if current == ReportStates.passport:
-        await state.update_data(passport='-')
-        await callback.message.edit_text(
-            "⏩ O'tkazildi.\n\n📅 <b>Tug'ilgan sanangizni</b> kiriting:\n"
-            "<i>Misol: 15.03.1990  (Ixtiyoriy)</i>",
-            parse_mode="HTML",
-            reply_markup=skip_kb()
-        )
-        await state.set_state(ReportStates.birth_date)
-
-    elif current == ReportStates.birth_date:
-        await state.update_data(birth_date='-')
-        await callback.message.edit_text(
-            "⏩ O'tkazildi.\n\n📍 <b>Manzilingizni</b> kiriting:\n"
-            "<i>Misol: Toshkent sh., Chilonzor t.  (Ixtiyoriy)</i>",
-            parse_mode="HTML",
-            reply_markup=skip_kb()
-        )
-        await state.set_state(ReportStates.address)
-
-    elif current == ReportStates.address:
-        await state.update_data(address='-')
-        await callback.message.edit_text(
-            "⏩ O'tkazildi.\n\n📞 <b>Telefon raqamingizni</b> kiriting:\n"
-            "<i>Misol: +998901234567  (Ixtiyoriy)</i>",
-            parse_mode="HTML",
-            reply_markup=skip_kb()
-        )
-        await state.set_state(ReportStates.phone)
-
-    elif current == ReportStates.phone:
-        await state.update_data(phone='-')
-        await ask_format(callback.message, state)
-        await state.set_state(ReportStates.choose_fmt)
+    await callback.answer("O'tkazib yuborildi", show_alert=False)
 
 
 # ── Format so'rash ──
 async def ask_format(message: Message, state: FSMContext):
     await message.answer(
-        "✅ Ma'lumotlar yig'ildi!\n\n"
-        "📁 Qaysi formatda hisobot olmoqchisiz?",
+        "✅ Barcha ma'lumotlar yig'ildi!\n\n"
+        "📁 Obyektivkani qaysi formatda olmoqchisiz?",
         reply_markup=format_kb()
     )
-    await state.set_state(ReportStates.choose_fmt)
+    await state.set_state(ObyektivkaStates.choose_fmt)
 
 
 # ── Hisobot yaratish ──
@@ -206,41 +140,45 @@ async def send_report(message: Message, state: FSMContext, fmt: str):
         if fmt in ('pdf', 'both'):
             pdf_bytes = generate_pdf(data)
             await message.answer_document(
-                BufferedInputFile(pdf_bytes, filename=f"{name_part}_hisobot.pdf"),
-                caption="📄 <b>PDF Hisobot</b> tayyor!",
+                BufferedInputFile(pdf_bytes, filename=f"{name_part}_obyektivka.pdf"),
+                caption="📄 <b>Obyektivka (PDF)</b> tayyor!\n\n<i>To'liq obyektivka to'ldirish uchun kompyuter kerak bo'lishi mumkin.</i>",
                 parse_mode="HTML"
             )
 
         if fmt in ('excel', 'both'):
             excel_bytes = generate_excel(data)
             await message.answer_document(
-                BufferedInputFile(excel_bytes, filename=f"{name_part}_hisobot.xlsx"),
-                caption="📊 <b>Excel Hisobot</b> tayyor!",
+                BufferedInputFile(excel_bytes, filename=f"{name_part}_obyektivka.xlsx"),
+                caption="📊 <b>Obyektivka (Excel)</b> tayyor!",
                 parse_mode="HTML"
             )
 
         await wait_msg.delete()
+        
+        # UX: Bosh menyuga qaytish
+        from keyboards.reply import get_main_menu
+        await message.answer("Boshqa xizmatlardan foydalanish uchun menyudan tanlang 👇", reply_markup=get_main_menu())
 
     except Exception as e:
-        logging.error(f"Hisobot yaratishda xato: {e}")
-        await wait_msg.edit_text("❌ Hisobot yaratishda xatolik yuz berdi. Keyinroq urinib ko'ring.")
+        logging.error(f"Obyektivka yaratishda xato: {e}")
+        await wait_msg.edit_text("❌ Obyektivka yaratishda xatolik yuz berdi. Keyinroq urinib ko'ring.")
 
 
-@router.callback_query(F.data == "report_fmt_pdf", ReportStates.choose_fmt)
+@router.callback_query(F.data == "report_fmt_pdf", ObyektivkaStates.choose_fmt)
 async def fmt_pdf(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text("📄 PDF hisobot yaratilmoqda...")
     await send_report(callback.message, state, 'pdf')
 
 
-@router.callback_query(F.data == "report_fmt_excel", ReportStates.choose_fmt)
+@router.callback_query(F.data == "report_fmt_excel", ObyektivkaStates.choose_fmt)
 async def fmt_excel(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    await callback.message.edit_text("📊 Excel hisobot yaratilmoqda...")
+    await callback.message.edit_text("📊 Excel obyektivka yaratilmoqda...")
     await send_report(callback.message, state, 'excel')
 
 
-@router.callback_query(F.data == "report_fmt_both", ReportStates.choose_fmt)
+@router.callback_query(F.data == "report_fmt_both", ObyektivkaStates.choose_fmt)
 async def fmt_both(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text("📦 PDF va Excel hisobotlar yaratilmoqda...")

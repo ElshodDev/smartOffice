@@ -7,23 +7,22 @@ document.documentElement.style.setProperty('--tg-theme-text-color', tg.textColor
 document.documentElement.style.setProperty('--tg-theme-button-color', tg.buttonColor || '#3b82f6');
 document.documentElement.style.setProperty('--tg-theme-button-text-color', tg.buttonTextColor || '#ffffff');
 
-const ADMIN_ID = 8006455257;
-
 // Sahifa yuklanganda ishga tushadi
 document.addEventListener('DOMContentLoaded', async () => {
     let user = tg.initDataUnsafe?.user;
     if (user) {
         document.getElementById('greeting').textContent = `Salom, ${user.first_name}! 👋`;
         
-        // Agar Admin kirgan bo'lsa
-        if (user.id === ADMIN_ID || user.id == ADMIN_ID) {
-            document.getElementById('user-view').style.display = 'none';
-            document.getElementById('admin-view').style.display = 'block';
+        // Backend dan ma'lumot olish orqali admin ekanligini tekshiramiz
+        try {
+            const response = await fetch(`/api/stats?user_id=${user.id}`);
             
-            // Backend dan ma'lumot olish
-            try {
-                const response = await fetch(`/api/stats?user_id=${user.id}`);
+            // Agar 200 OK kelsa, demak u Admin!
+            if (response.ok) {
                 const data = await response.json();
+                
+                document.getElementById('user-view').style.display = 'none';
+                document.getElementById('admin-view').style.display = 'block';
                 
                 if (data.count !== undefined) {
                     document.getElementById('total-users').textContent = data.count;
@@ -45,10 +44,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         tbody.appendChild(tr);
                     });
                 }
-            } catch (err) {
-                console.error("Xato:", err);
-                document.getElementById('total-users').textContent = "Xato";
+            } else {
+                // Oddiy foydalanuvchi - hechnarsa o'zgartirmaymiz (user-view ochiq qoladi)
+                console.log("Oddiy foydalanuvchi rejimi");
             }
+        } catch (err) {
+            console.error("Server bilan bog'lanishda xato:", err);
         }
     }
 });
@@ -62,3 +63,4 @@ function sendMessage(text) {
 function closeApp() {
     tg.close();
 }
+

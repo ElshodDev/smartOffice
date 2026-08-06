@@ -8,12 +8,10 @@ from datetime import datetime
 
 
 FIELD_LABELS = {
-    'full_name': 'Ism',
-    'surname': 'Familiya',
-    'passport': 'Pasport raqami',
-    'birth_date': "Tug'ilgan sana",
-    'address': 'Manzil',
-    'phone': 'Telefon',
+    'full_name': 'F.I.Sh.',
+    'birth_info': 'Tug\'ilgan yili va joyi',
+    'education': 'Ma\'lumoti, mutaxassisligi',
+    'experience': 'Ish joyi, lavozimi',
 }
 
 # Colors
@@ -46,7 +44,7 @@ def generate_excel(data: dict) -> bytes:
     # ── Row 1: Main Title ──
     ws.merge_cells('A1:B1')
     title_cell = ws['A1']
-    title_cell.value = 'smartOffice — Shaxsiy Ma\'lumotlar Hisoboti'
+    title_cell.value = 'smartOffice — MA\'LUMOTNOMA (OBYEKTIVKA)'
     title_cell.font = Font(name='Calibri', bold=True, size=14, color=TITLE_FG)
     title_cell.fill = PatternFill('solid', fgColor=TITLE_BG)
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
