@@ -2,50 +2,60 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Office Web App</title>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="glass-container">
         <header>
             <h1 id="greeting">Salom!</h1>
-            <p>Smart Office Boshqaruv Paneli</p>
+            <p>Iltimos, kerakli bo'limni tanlang</p>
         </header>
 
         <main>
-            <div class="card" onclick="sendMessage('⏰ Eslatmalar')">
-                <div class="icon">⏰</div>
-                <div class="info">
-                    <h3>Eslatmalar</h3>
-                    <p>Yangi eslatma qo'shish</p>
+            <div class="grid-menu">
+                <div class="card" onclick="sendMessage('⏰ Eslatmalar')">
+                    <div class="icon">⏰</div>
+                    <div class="info">
+                        <h3>Eslatmalar</h3>
+                        <p>Yangi eslatma va vazifalar</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card" onclick="sendMessage('📄 PDF Asboblari')">
-                <div class="icon">📄</div>
-                <div class="info">
-                    <h3>PDF Asboblari</h3>
-                    <p>PDF ni kesish, birlashtirish, aylantirish</p>
+                <div class="card" onclick="sendMessage('📄 PDF Asboblari')">
+                    <div class="icon">📄</div>
+                    <div class="info">
+                        <h3>PDF Asboblari</h3>
+                        <p>Kesish, birlashtirish, aylantirish</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card" onclick="sendMessage('📊 Excel Asboblari')">
-                <div class="icon">📊</div>
-                <div class="info">
-                    <h3>Excel Asboblari</h3>
-                    <p>Hisobot va jadvallar vizualizatsiyasi</p>
+                <div class="card" onclick="sendMessage('📊 Excel Asboblari')">
+                    <div class="icon">📊</div>
+                    <div class="info">
+                        <h3>Excel Asboblari</h3>
+                        <p>Hisobotlar va ma'lumotlar vizualizatsiyasi</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card" onclick="sendMessage('🤖 AI Yordamchi')">
-                <div class="icon">🤖</div>
-                <div class="info">
-                    <h3>Sun'iy Intellekt</h3>
-                    <p>Gemini bilan suhbatlashish</p>
+                <div class="card" onclick="sendMessage('🔄 Tarjimon & Konvertor')">
+                    <div class="icon">🔄</div>
+                    <div class="info">
+                        <h3>Tarjimon</h3>
+                        <p>Tezkor format konvertatsiyasi</p>
+                    </div>
+                </div>
+
+                <div class="card ai" onclick="sendMessage('🤖 AI Yordamchi')">
+                    <div class="icon">✨</div>
+                    <div class="info">
+                        <h3>Sun'iy Intellekt</h3>
+                        <p>Kuchli Gemini orqali istalgan savolingizga javob oling va matnlar yarating</p>
+                    </div>
                 </div>
             </div>
             
