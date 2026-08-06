@@ -4,180 +4,170 @@ import tempfile
 from fpdf import FPDF
 from datetime import datetime
 
-
 class ObyektivkaPDF(FPDF):
     def header(self):
-        pass  # Sarlavha PDF ichida qo'lda chiziladi
+        pass
 
     def footer(self):
-        self.set_y(-12)
-        self.set_font('Helvetica', 'I', 7)
+        self.set_y(-15)
+        self.set_font('Times', 'I', 8)
         self.set_text_color(160, 160, 160)
-        now = datetime.now().strftime('%d.%m.%Y')
-        self.cell(0, 8, f'smartOffice Bot orqali yaratildi  |  {now}  |  Sahifa {self.page_no()}', align='C')
-
-
-def _draw_field(pdf: FPDF, label: str, value: str, x: float, y: float, w_label: float, w_value: float, h: float = 7):
-    """Label + value juftini chizadi."""
-    pdf.set_xy(x, y)
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(w_label, h, label + ":", ln=False)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(w_value, h, str(value), ln=False)
-
+        self.cell(0, 10, f'Sahifa {self.page_no()}', align='C')
 
 def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
-    """Standart O'zbek Obyektivkasi formatida PDF yaratadi."""
-    pdf = ObyektivkaPDF()
+    pdf = ObyektivkaPDF(unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_margins(15, 15, 15)
-
+    pdf.set_margins(20, 20, 20)
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
     page_w = 210
-    margin = 15
-    content_w = page_w - 2 * margin   # 180 mm
-
-    # ── Sarlavha ──────────────────────────────────────────────
-    pdf.set_font('Helvetica', 'B', 14)
-    pdf.set_text_color(20, 20, 20)
-    pdf.set_y(14)
-    pdf.cell(0, 8, "MA'LUMOTNOMA", align='C', ln=True)
-
-    # F.I.Sh. (to'liq ism sarlavha ostida)
+    margin = 20
+    content_w = page_w - 2 * margin
+    
+    # ── Sarlavha ──
+    pdf.set_font('Times', 'B', 12)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 6, "MA'LUMOTNOMA", align='C', ln=True)
+    
     full_name = data.get('full_name', '')
-    pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_y(24)
-    pdf.cell(0, 7, full_name, align='C', ln=True)
-
-    # Ajratuvchi chiziq
-    y_after_name = pdf.get_y() + 2
-    pdf.set_draw_color(180, 180, 180)
-    pdf.set_line_width(0.3)
-    pdf.line(margin, y_after_name, page_w - margin, y_after_name)
-
-    # ── Fotosurat (o'ng yuqori burchak) ──────────────────────
-    photo_x = page_w - margin - 33
-    photo_y = 14
-    photo_w = 33
-    photo_h = 42
-
+    pdf.set_font('Times', 'B', 11)
+    pdf.cell(0, 6, full_name, align='C', ln=True)
+    pdf.ln(8)
+    
+    # ── Asosiy ma'lumotlar (Top 3 qator va Foto) ──
+    photo_w = 35
+    photo_h = 45
+    photo_x = page_w - margin - photo_w
+    
+    # Rasm y coordinates
+    photo_y = pdf.get_y()
+    
+    # Agar rasm bo'lsa, chizib qo'yamiz
     if photo_bytes:
         try:
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                 tmp.write(photo_bytes)
                 tmp_path = tmp.name
-            pdf.set_draw_color(120, 120, 120)
-            pdf.set_line_width(0.4)
-            pdf.rect(photo_x - 0.5, photo_y - 0.5, photo_w + 1, photo_h + 1)
+            pdf.set_draw_color(150, 150, 150)
+            pdf.rect(photo_x, photo_y, photo_w, photo_h)
             pdf.image(tmp_path, x=photo_x, y=photo_y, w=photo_w, h=photo_h)
             os.unlink(tmp_path)
         except Exception:
             _draw_photo_placeholder(pdf, photo_x, photo_y, photo_w, photo_h)
     else:
         _draw_photo_placeholder(pdf, photo_x, photo_y, photo_w, photo_h)
+        
+    # Columns settings
+    col1_x = margin
+    col2_x = margin + 70
+    
+    def draw_cell(x, y, label, val):
+        pdf.set_xy(x, y)
+        pdf.set_font('Times', 'B', 10)
+        pdf.cell(60, 5, label, ln=True)
+        pdf.set_xy(x, y + 5)
+        pdf.set_font('Times', '', 10)
+        pdf.cell(60, 5, str(val), ln=False)
 
-    # ── Asosiy ma'lumotlar ─────────────────────────────────────
-    # 2 ustunli maydon: chap va o'ng
-    start_y = y_after_name + 3
-    left_x = margin
-    col_w = (photo_x - margin - 6) / 2
-    row_h = 10
-    row_gap = 2
-
-    # --- Qator 1: Tug'ilgan yili | Tug'ilgan joyi ---
-    y = start_y
-    _draw_two_col_row(
-        pdf,
-        left_x, y, col_w, row_h,
-        "Tug'ilgan yili:", data.get('birth_date', ''),
-        "Tug'ilgan joyi:", data.get('birth_place', ''),
-    )
-    y += row_h + row_gap
-
-    # --- Qator 2: Millati | Partiyaviyligi ---
-    _draw_two_col_row(
-        pdf,
-        left_x, y, col_w, row_h,
-        "Millati:", data.get('nationality', ''),
-        "Partiyaviyligi:", data.get('party', "yo'q"),
-    )
-    y += row_h + row_gap
-
-    # --- Qator 3: Ma'lumoti | Tamomlagan ---
-    _draw_two_col_row(
-        pdf,
-        left_x, y, col_w, row_h,
-        "Ma'lumoti:", data.get('education', ''),
-        "Tamomlagan:", data.get('graduated', ''),
-    )
-    y = max(y + row_h + row_gap, photo_y + photo_h + 3)
-
-    # Ajratuvchi chiziq
-    pdf.set_draw_color(180, 180, 180)
-    pdf.line(margin, y - 2, page_w - margin, y - 2)
-
-    # --- To'liq kenglikdagi maydonlar ---
-    full_fields = [
-        ("Ma'lumoti bo'yicha mutaxassisligi:", data.get('specialty', '')),
-        ("Ilmiy darajasi:", data.get('sci_degree', "yo'q")),
-        ("Ilmiy unvoni:", data.get('sci_title', "yo'q")),
-        ("Qaysi chet tillarini biladi:", data.get('languages', "yo'q")),
-        ("Harbiy (maxsus) unvoni:", data.get('military', "yo'q")),
-        ("Davlat mukofotlari bilan taqdirlangan (qanaqasi):", data.get('awards', "yo'q")),
-        ("Xalq deputatimi yoki boshqa saylanadigan organlar a'zosimi (to'liq ko'rsatilishi lozim):", data.get('deputy', "yo'q")),
-    ]
-
-    for label, value in full_fields:
-        pdf.set_xy(margin, y)
-        pdf.set_font('Helvetica', 'B', 8)
-        pdf.set_text_color(60, 60, 60)
-        pdf.cell(content_w, 4, label, ln=True)
-
-        pdf.set_x(margin)
-        pdf.set_font('Helvetica', '', 9)
-        pdf.set_text_color(20, 20, 20)
-        pdf.multi_cell(content_w, 4.5, str(value))
-        y = pdf.get_y() + 2
-
-    # ── MEHNAT FAOLIYATI ──────────────────────────────────────
-    y = pdf.get_y() + 3
-    pdf.set_draw_color(180, 180, 180)
-    pdf.line(margin, y, page_w - margin, y)
-    y += 4
-
-    pdf.set_xy(margin, y)
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 7, "MEHNAT FAOLIYATI", align='C', ln=True)
-    y = pdf.get_y() + 1
-
+    y_cur = photo_y
+    draw_cell(col1_x, y_cur, "Tug'ilgan yili:", data.get('birth_date', ''))
+    draw_cell(col2_x, y_cur, "Tug'ilgan joyi:", data.get('birth_place', ''))
+    
+    y_cur += 13
+    draw_cell(col1_x, y_cur, "Millati:", data.get('nationality', ''))
+    draw_cell(col2_x, y_cur, "Partiyaviyligi:", data.get('party', "yo'q"))
+    
+    y_cur += 13
+    draw_cell(col1_x, y_cur, "Ma'lumoti:", data.get('education', ''))
+    
+    # Tamomlagan can be long, handle wrapping
+    pdf.set_xy(col2_x, y_cur)
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(60, 5, "Tamomlagan:", ln=True)
+    pdf.set_xy(col2_x, y_cur + 5)
+    pdf.set_font('Times', '', 10)
+    pdf.multi_cell(photo_x - col2_x - 5, 5, str(data.get('graduated', '')))
+    
+    # Move Y below the photo or columns (whichever is lower)
+    pdf.set_y(max(pdf.get_y(), photo_y + photo_h) + 5)
+    
+    # ── Mutaxassisligi (Inline) ──
+    y_cur = pdf.get_y()
+    pdf.set_xy(col1_x, y_cur)
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(70, 5, "Ma'lumoti bo'yicha mutaxassisligi:", ln=False)
+    pdf.set_xy(col2_x, y_cur)
+    pdf.set_font('Times', '', 10)
+    pdf.multi_cell(content_w - 70, 5, str(data.get('specialty', '')))
+    
+    pdf.ln(3)
+    y_cur = pdf.get_y()
+    
+    # ── Ilmiy darajasi va unvoni (2 columns) ──
+    draw_cell(col1_x, y_cur, "Ilmiy darajasi:", data.get('sci_degree', "yo'q"))
+    draw_cell(col2_x, y_cur, "Ilmiy unvoni:", data.get('sci_title', "yo'q"))
+    pdf.ln(8)
+    
+    # ── Tillari va harbiy (2 columns) ──
+    y_cur = pdf.get_y() + 5
+    draw_cell(col1_x, y_cur, "Qaysi chet tillarini biladi:", data.get('languages', "yo'q"))
+    draw_cell(col2_x, y_cur, "Harbiy (maxsus) unvoni:", data.get('military', "yo'q"))
+    pdf.ln(8)
+    
+    # ── Davlat mukofotlari (Inline) ──
+    y_cur = pdf.get_y() + 5
+    pdf.set_xy(col1_x, y_cur)
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(70, 5, "Davlat mukofotlari bilan taqdirlanganmi:", ln=False)
+    pdf.set_font('Times', '', 10)
+    # The value comes exactly after label without col2 gap
+    pdf.cell(0, 5, " " + str(data.get('awards', "yo'q")), ln=True)
+    pdf.ln(2)
+    
+    # ── Xalq deputatlari (Block) ──
+    y_cur = pdf.get_y()
+    pdf.set_xy(col1_x, y_cur)
+    pdf.set_font('Times', 'B', 10)
+    dep_text = "Xalq deputatlari, respublika, viloyat, shahar va tuman Kengashi deputatimi yoki boshqa saylanadigan organlarning a'zosimi: "
+    # Write inline label then normal text
+    pdf.write(5, dep_text)
+    pdf.set_font('Times', '', 10)
+    pdf.write(5, str(data.get('deputy', "yo'q")))
+    pdf.ln(12)
+    
+    # ── MEHNAT FAOLIYATI ──
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(0, 6, "MEHNAT FAOLIYATI", align='C', ln=True)
+    pdf.ln(2)
+    
     work = data.get('work_history', '')
     if work and work != "yo'q":
         for line in work.split('\n'):
             line = line.strip()
             if not line:
                 continue
-            # "—" bo'yicha ajratish: yillar | joy
             parts = line.split('—', 1)
-            pdf.set_xy(margin, pdf.get_y())
+            if len(parts) == 1:
+                parts = line.split('-', 1) # fallback hyphen
+                
+            pdf.set_x(margin)
             if len(parts) == 2:
-                pdf.set_font('Helvetica', 'B', 9)
-                pdf.set_text_color(40, 40, 40)
-                pdf.cell(38, 5, parts[0].strip(), ln=False)
-                pdf.set_font('Helvetica', '', 9)
-                pdf.set_text_color(20, 20, 20)
-                pdf.multi_cell(content_w - 38, 5, parts[1].strip())
+                pdf.set_font('Times', '', 10)
+                # left side (years)
+                pdf.cell(35, 5, parts[0].strip(), ln=False)
+                # separator
+                pdf.cell(10, 5, "-", align='C', ln=False)
+                # right side
+                pdf.multi_cell(0, 5, parts[1].strip())
             else:
-                pdf.set_font('Helvetica', '', 9)
-                pdf.multi_cell(content_w, 5, line)
+                pdf.set_font('Times', '', 10)
+                pdf.multi_cell(0, 5, line)
     else:
-        pdf.set_xy(margin, pdf.get_y())
-        pdf.set_font('Helvetica', 'I', 9)
-        pdf.set_text_color(130, 130, 130)
+        pdf.set_x(margin)
+        pdf.set_font('Times', 'I', 10)
         pdf.cell(0, 5, "yo'q", ln=True)
 
-    # ── YAQIN QARINDOSHLAR (2-sahifa) ─────────────────────────
+    # ── YAQIN QARINDOSHLAR (2-sahifa) ──
     relatives = [
         ("Otasi",               data.get('rel_father',   '')),
         ("Onasi",               data.get('rel_mother',   '')),
@@ -189,42 +179,33 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
 
     if has_relatives:
         pdf.add_page()
+        pdf.set_font('Times', 'B', 11)
+        pdf.cell(0, 6, f"{full_name.upper()}", align='C', ln=True)
 
-        pdf.set_font('Helvetica', 'B', 11)
-        pdf.set_text_color(20, 20, 20)
-        pdf.set_y(14)
-        pdf.cell(0, 8, f"{full_name.upper()}", align='C', ln=True)
-
-        pdf.set_font('Helvetica', '', 9)
-        pdf.set_text_color(60, 60, 60)
+        pdf.set_font('Times', '', 10)
         pdf.cell(0, 6, "ning yaqin qarindoshlari haqida MA'LUMOT", align='C', ln=True)
-
-        pdf.ln(3)
-        pdf.set_draw_color(180, 180, 180)
-        pdf.line(margin, pdf.get_y(), page_w - margin, pdf.get_y())
         pdf.ln(5)
 
-        # Jadval sarlavhasi
-        col_widths = [32, 42, 42, 40]   # Jami = 156 ~ content_w
-        headers = ["Qarindoshligi", "F.I.Sh.", "Ish joyi va lavozimi", "Yashash manzili"]
+        # Table headers
+        col_widths = [30, 45, 45, 50]
+        headers = ["Qarindoshligi", "F.I.Sh. va tug'ilgan yili", "Ish joyi va lavozimi", "Yashash manzili"]
 
-        hdr_y = pdf.get_y()
+        pdf.set_font('Times', 'B', 9)
         x_cur = margin
-        for i, (hdr, cw) in enumerate(zip(headers, col_widths)):
-            pdf.set_xy(x_cur, hdr_y)
-            pdf.set_fill_color(30, 41, 59)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 8)
-            pdf.cell(cw, 8, hdr, border=1, fill=True, align='C')
+        y_cur = pdf.get_y()
+        # header cells height = 10
+        for hdr, cw in zip(headers, col_widths):
+            pdf.set_xy(x_cur, y_cur)
+            pdf.multi_cell(cw, 5, hdr, border=1, align='C')
             x_cur += cw
-        pdf.ln(8)
+        pdf.set_y(y_cur + 10)
 
         # Jadval satrlari
+        pdf.set_font('Times', '', 9)
         for idx, (role, raw) in enumerate(relatives):
             if not raw or raw == "yo'q":
                 continue
 
-            # raw ma'lumotni qatorlarga ajratish va 3 tadan guruhlash (chunking)
             lines = [l.strip() for l in raw.split('\n') if l.strip()]
             chunks = [lines[i:i+3] for i in range(0, len(lines), 3)]
             
@@ -233,91 +214,51 @@ def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
                 work_val = chunk[1] if len(chunk) > 1 else ''
                 addr_val = chunk[2] if len(chunk) > 2 else ''
 
-                fill = ((idx + chunk_idx) % 2 == 0)
-                fill_color = (241, 245, 249) if fill else (255, 255, 255)
-                pdf.set_fill_color(*fill_color)
-                pdf.set_text_color(20, 20, 20)
-                pdf.set_font('Helvetica', '', 8)
-
                 row_y = pdf.get_y()
                 x_cur = margin
-                
-                # Agar bitta qarindosh tipi (role) uchun bir nechta yozuv bo'lsa, roleni takrorlamaymiz
                 display_role = role if chunk_idx == 0 else ''
-                
                 cells = [display_role, name_val, work_val, addr_val]
                 
-                # Eng baland matn uchun balandlikni hisoblash
                 max_lines = 1
                 for val, cw in zip(cells, col_widths):
-                    # FPDF multi_cell qatorlarni avtomatik bo'ladi. Taxminiy qatorlar soni:
                     str_w = pdf.get_string_width(str(val))
                     lines_needed = max(1, int(str_w / (cw - 2)) + 1)
                     if lines_needed > max_lines:
                         max_lines = lines_needed
                 
-                row_height = max_lines * 4.5
+                row_height = max_lines * 5
+                if row_height < 7:
+                    row_height = 7 # min height
+                
+                # if exceeds page, add page
+                if row_y + row_height > 280:
+                    pdf.add_page()
+                    row_y = pdf.get_y()
                 
                 for val, cw in zip(cells, col_widths):
                     pdf.set_xy(x_cur, row_y)
-                    # Rect for borders and fill
-                    pdf.rect(x_cur, row_y, cw, row_height, 'DF')
-                    # Matn joylashtirish
-                    pdf.set_xy(x_cur, row_y + (row_height - (len(str(val).split('\n')) * 4.5)) / 2)
-                    pdf.multi_cell(cw, 4.5, str(val), border=0, align='C')
+                    pdf.rect(x_cur, row_y, cw, row_height)
+                    # Vertically center text
+                    text_h = len(str(val).split('\n')) * 5
+                    pdf.set_xy(x_cur, row_y + (row_height - text_h) / 2)
+                    pdf.multi_cell(cw, 5, str(val), border=0, align='C')
                     x_cur += cw
                     
                 pdf.set_y(row_y + row_height)
 
-    # Return as bytes
     buf = io.BytesIO()
     buf.write(pdf.output())
     buf.seek(0)
     return buf.read()
 
 
-
 def _draw_photo_placeholder(pdf: FPDF, x, y, w, h):
-    """Bo'sh foto ramkasi."""
     pdf.set_draw_color(160, 160, 160)
-    pdf.set_line_width(0.4)
+    pdf.set_line_width(0.3)
     pdf.rect(x, y, w, h)
-    pdf.set_font('Helvetica', '', 7)
+    pdf.set_font('Times', '', 8)
     pdf.set_text_color(160, 160, 160)
     pdf.set_xy(x, y + h / 2 - 3)
     pdf.cell(w, 6, '3x4', align='C')
-
-
-def _draw_two_col_row(
-    pdf: FPDF,
-    x: float, y: float, col_w: float, row_h: float,
-    label1: str, val1: str,
-    label2: str, val2: str,
-):
-    """Bir qatorda 2 ta label+value chizadi (juda zich)."""
-    gap = 5   # ustunlar orasidagi bo'shliq
-
-    # --- Chap ustun ---
-    pdf.set_xy(x, y)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(col_w, 4, label1, ln=True)
-    
-    pdf.set_xy(x, y + 4)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(col_w - gap, 5, str(val1), ln=False)
-
-    # --- O'ng ustun ---
-    x2 = x + col_w + gap
-    pdf.set_xy(x2, y)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(col_w, 4, label2, ln=True)
-    
-    pdf.set_xy(x2, y + 4)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(col_w - gap, 5, str(val2), ln=False)
-
-    pdf.set_y(y + row_h)
+    # reset color
+    pdf.set_text_color(0, 0, 0)
