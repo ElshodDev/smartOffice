@@ -4,7 +4,6 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from services.subscription import is_premium
 from services.pdf_report import generate_pdf
 from services.excel_report import generate_excel
 
@@ -72,19 +71,6 @@ def rel_hint(role: str) -> str:
 @router.message(F.text == "📋 Obyektivka Yaratish")
 async def start_report(message: Message, state: FSMContext):
     await state.clear()
-
-    premium = await is_premium(message.from_user.id)
-    if not premium:
-        await message.answer(
-            "📋 <b>Obyektivka Yaratish — Premium xizmat</b>\n\n"
-            "Bu funksiya faqat <b>Premium</b> foydalanuvchilar uchun mavjud.\n\n"
-            "💳 Asosiy menyudagi <b>\"💳 Premium\"</b> tugmasini bosing.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="💳 Premium olish", callback_data="go_premium")
-            ]])
-        )
-        return
 
     await message.answer(
         "📋 <b>Ma'lumotnoma (Obyektivka) Yaratish</b>\n\n"
