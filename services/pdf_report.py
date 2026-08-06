@@ -39,8 +39,8 @@ FIELD_LABELS = {
 }
 
 
-def generate_pdf(data: dict) -> bytes:
-    """Foydalanuvchi ma'lumotlaridan chiroyli PDF hisobot yaratadi."""
+def generate_pdf(data: dict, photo_bytes: bytes = None) -> bytes:
+    """Foydalanuvchi ma'lumotlaridan chiroyli Obyektivka PDF yaratadi."""
     pdf = ReportPDF()
     pdf.add_page()
 
@@ -57,14 +57,46 @@ def generate_pdf(data: dict) -> bytes:
     pdf.line(20, pdf.get_y(), 190, pdf.get_y())
     pdf.ln(8)
 
-    # ── Data rows ──
+    # ── Fotosurat (3x4) o'ng burchakda ──
+    photo_col_x = 155   # X holati (o'ng)
+    photo_col_y = 50    # Y holati (sarlavhadan pastroq)
+    photo_w = 35        # 3x4 proporsiyada (mm)
+    photo_h = 47
+
+    if photo_bytes:
+        try:
+            import tempfile, os
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                tmp.write(photo_bytes)
+                tmp_path = tmp.name
+            # Rasm chegarasi (ramka)
+            pdf.set_draw_color(100, 116, 139)
+            pdf.set_line_width(0.5)
+            pdf.rect(photo_col_x - 1, photo_col_y - 1, photo_w + 2, photo_h + 2)
+            pdf.image(tmp_path, x=photo_col_x, y=photo_col_y, w=photo_w, h=photo_h)
+            os.unlink(tmp_path)
+        except Exception:
+            # Rasm qo'shilmasa ham davom etamiz
+            pass
+    else:
+        # Fotosiz bo'lsa — bo'sh ramka
+        pdf.set_draw_color(148, 163, 184)
+        pdf.set_line_width(0.5)
+        pdf.rect(photo_col_x - 1, photo_col_y - 1, photo_w + 2, photo_h + 2)
+        pdf.set_font('Helvetica', '', 7)
+        pdf.set_text_color(148, 163, 184)
+        pdf.set_xy(photo_col_x, photo_col_y + photo_h / 2 - 3)
+        pdf.cell(photo_w, 6, '3x4 RASM', align='C')
+
+    # ── Data rows (chap tomonda, rasm bilan yon-yon) ──
     row_num = 0
+    data_area_w_label = 50
+    data_area_w_value = 80   # Rasm uchun joy qoldirgan holda
     for key, label in FIELD_LABELS.items():
         value = data.get(key)
         if not value or value == '-':
             continue
 
-        # Alternating row colors
         if row_num % 2 == 0:
             pdf.set_fill_color(241, 245, 249)
         else:
@@ -73,16 +105,17 @@ def generate_pdf(data: dict) -> bytes:
         pdf.set_x(20)
         pdf.set_font('Helvetica', 'B', 11)
         pdf.set_text_color(71, 85, 105)
-        pdf.cell(55, 12, label + ':', fill=True)
+        pdf.cell(data_area_w_label, 14, label + ':', fill=True)
 
         pdf.set_font('Helvetica', '', 11)
         pdf.set_text_color(15, 23, 42)
-        pdf.cell(115, 12, str(value), fill=True, ln=True)
+        # Multi_cell uchun x qayta o'rnatamiz
+        pdf.multi_cell(data_area_w_value, 14, str(value), fill=True)
 
         row_num += 1
 
     # ── Bottom divider ──
-    pdf.ln(8)
+    pdf.ln(6)
     pdf.set_draw_color(59, 130, 246)
     pdf.line(20, pdf.get_y(), 190, pdf.get_y())
     pdf.ln(10)
@@ -90,7 +123,7 @@ def generate_pdf(data: dict) -> bytes:
     # ── Note ──
     pdf.set_font('Helvetica', 'I', 9)
     pdf.set_text_color(148, 163, 184)
-    pdf.cell(0, 8, 'Ushbu hisobot smartOffice Telegram boti orqali avtomatik yaratilgan.', align='C')
+    pdf.cell(0, 8, 'Ushbu ma\'lumotnoma smartOffice Telegram boti orqali avtomatik yaratilgan.', align='C')
 
     # Return as bytes
     buf = io.BytesIO()
@@ -98,3 +131,4 @@ def generate_pdf(data: dict) -> bytes:
     buf.write(pdf_bytes)
     buf.seek(0)
     return buf.read()
+

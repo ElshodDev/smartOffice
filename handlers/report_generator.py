@@ -1,6 +1,8 @@
 import io
 import logging
-from aiogram import Router, F
+import os
+import tempfile
+from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -16,6 +18,7 @@ class ObyektivkaStates(StatesGroup):
     birth_info  = State()
     education   = State()
     experience  = State()
+    photo       = State()   # 3x4 fotosurat
     choose_fmt  = State()
 
 
@@ -107,10 +110,33 @@ async def get_education(message: Message, state: FSMContext):
 @router.message(ObyektivkaStates.experience, F.text)
 async def get_experience(message: Message, state: FSMContext):
     await state.update_data(experience=message.text.strip())
+    await message.answer(
+        "✅ Saqlandi!\n\n📸 Endi <b>3x4 sm fotosuratingizni</b> yuboring:\n"
+        "<i>(Ixtiyoriy — o'tkazib yuborish mumkin)</i>",
+        parse_mode="HTML",
+        reply_markup=skip_kb()
+    )
+    await state.set_state(ObyektivkaStates.photo)
+
+
+# ── Fotosurat ──
+@router.message(ObyektivkaStates.photo, F.photo)
+async def get_photo(message: Message, state: FSMContext):
+    # Eng katta sifatli rasmni olamiz
+    photo = message.photo[-1]
+    await state.update_data(photo_file_id=photo.file_id)
     await ask_format(message, state)
 
 
-# ── Skip callback ──
+# ── Foto o'tkazib yuborish (callback) ──
+@router.callback_query(F.data == "report_skip", ObyektivkaStates.photo)
+async def skip_photo(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Fotosuratsiz davom etiladi", show_alert=False)
+    await state.update_data(photo_file_id=None)
+    await ask_format(callback.message, state)
+
+
+# ── Skip callback (boshqa maydonlar uchun - hozir ishlatilmaydi) ──
 @router.callback_query(F.data == "report_skip")
 async def skip_field(callback: CallbackQuery, state: FSMContext):
     await callback.answer("O'tkazib yuborildi", show_alert=False)
@@ -128,20 +154,34 @@ async def ask_format(message: Message, state: FSMContext):
 
 # ── Hisobot yaratish ──
 async def send_report(message: Message, state: FSMContext, fmt: str):
+    from aiogram import Bot
     data = await state.get_data()
     await state.clear()
 
     # Foydalanuvchi ismidan fayl nomi
     name_part = data.get('full_name', 'hisobot').replace(' ', '_')
 
-    wait_msg = await message.answer("⏳ Hisobot tayyorlanmoqda...")
+    wait_msg = await message.answer("⏳ Obyektivka tayyorlanmoqda...")
+
+    # Fotosurat yuklab olish
+    photo_bytes = None
+    photo_file_id = data.get('photo_file_id')
+    if photo_file_id:
+        try:
+            bot: Bot = message.bot
+            file = await bot.get_file(photo_file_id)
+            photo_io = io.BytesIO()
+            await bot.download_file(file.file_path, photo_io)
+            photo_bytes = photo_io.getvalue()
+        except Exception as e:
+            logging.warning(f"Fotosurat yuklab bo'lmadi: {e}")
 
     try:
         if fmt in ('pdf', 'both'):
-            pdf_bytes = generate_pdf(data)
+            pdf_bytes = generate_pdf(data, photo_bytes=photo_bytes)
             await message.answer_document(
                 BufferedInputFile(pdf_bytes, filename=f"{name_part}_obyektivka.pdf"),
-                caption="📄 <b>Obyektivka (PDF)</b> tayyor!\n\n<i>To'liq obyektivka to'ldirish uchun kompyuter kerak bo'lishi mumkin.</i>",
+                caption="📄 <b>Obyektivka (PDF)</b> tayyor!",
                 parse_mode="HTML"
             )
 
