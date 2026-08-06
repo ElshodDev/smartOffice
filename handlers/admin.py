@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 
 from config import ADMIN_ID
 from services.database import get_users_count, get_all_users
+import re
 
 # ADMIN_ID ni xavfsiz int ga o'tkazish
 try:
@@ -136,3 +137,36 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
         f"📊 Jami: <b>{total}</b> ta",
         parse_mode="HTML"
     )
+
+# ── Admin murojaatga javob berishi ──
+@router.message(F.reply_to_message)
+async def process_admin_reply(message: Message, bot: Bot):
+    original_msg = message.reply_to_message.text
+    if not original_msg or "🆔 ID:" not in original_msg:
+        return
+
+    # User ID ni qidirish
+    match = re.search(r"🆔 ID:\s*(\d+)", original_msg)
+    if not match:
+        await message.answer("❌ Foydalanuvchi ID raqamini topib bo'lmadi.")
+        return
+
+    user_id = int(match.group(1))
+
+    try:
+        # Xabarni nusxalash (agar rasm/video bo'lsa uni ham yuboradi)
+        await message.copy_to(
+            chat_id=user_id,
+            reply_markup=None
+        )
+        await bot.send_message(
+            chat_id=user_id,
+            text="📞 <i>Yuqoridagi xabar admindan keldi.</i>",
+            parse_mode="HTML"
+        )
+        await message.answer("✅ Javobingiz foydalanuvchiga yuborildi.")
+    except TelegramForbiddenError:
+        await message.answer("❌ Foydalanuvchi botni bloklagan, xabar yetib bormadi.")
+    except Exception as e:
+        await message.answer(f"❌ Xatolik yuz berdi: {e}")
+
