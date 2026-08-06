@@ -109,7 +109,17 @@ async def show_about(callback: CallbackQuery):
     await callback.message.edit_text(about_text, parse_mode="HTML", reply_markup=back_btn)
     await callback.answer()
 
-# ── Adminga murojaat (Sozlamalar ichidan) ──
+# ── Adminga murojaat (Asosiy menyu va Sozlamalar ichidan) ──
+@router.message(F.text == "📞 Admin / Buyurtma")
+async def ask_feedback_menu(message: Message, state: FSMContext):
+    await message.answer(
+        "📞 <b>Admin bilan aloqa</b>\n\n"
+        "Savolingiz, taklifingiz yoki <b>buyurtmangizni</b> batafsil yozib yuboring.\n"
+        "<i>Xabaringiz to'g'ridan-to'g'ri adminga yuboriladi.</i>",
+        parse_mode="HTML"
+    )
+    await state.set_state(SettingsStates.waiting_for_feedback)
+
 @router.callback_query(F.data == "settings_feedback")
 async def ask_feedback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
