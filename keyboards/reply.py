@@ -30,11 +30,8 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="📞 Admin / Buyurtma"),
         ],
         [
-            KeyboardButton(text="💳 Premium"),
+            KeyboardButton(text="🔗 Ulashish"),
             KeyboardButton(text="🛒 Xizmatlarim"),
         ],
-        [
-            KeyboardButton(text="🔗 Ulashish"),
-        ]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

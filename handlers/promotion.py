@@ -36,8 +36,8 @@ async def share_bot(message: Message):
     telegram_share_url = f"https://t.me/share/url?url={share_link}&text={encoded_text}"
     
     await message.answer(
-        "🔗 <b>Do'stlarga ulashing va sovg'a oling!</b>\n\n"
-        "Agar do'stlaringiz sizning havolangiz orqali botga qo'shilsa, <b>ikkalangizga ham 3 kunlik Premium</b> sovg'a qilinadi! 💎\n\n"
+        "🔗 <b>Do'stlarga ulashing!</b>\n\n"
+        "Do'stlaringizni botga taklif qiling va ular bilan birga foydali xizmatlardan foydalaning! 🤝\n\n"
         f"Sizning maxsus havolangiz:\n<code>{share_link}</code>",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[

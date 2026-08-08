@@ -14,7 +14,6 @@ MAIN_BUTTONS = {
     "⚙️ Sozlamalar",
     "🌐 Web Ilovani ochish",
     "📋 Obyektivka Yaratish",
-    "💳 Premium",
     "🛒 Xizmatlarim",
     "🔗 Ulashish",
     "/start"
