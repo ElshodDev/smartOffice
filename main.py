@@ -48,12 +48,11 @@ async def handle_ping(request):
 async def api_stats(request: web.Request):
     try:
         user_id_str = request.query.get("user_id", "")
-        # Very basic check, in production you'd validate initData hash
         if user_id_str != str(ADMIN_ID):
             return web.json_response({"error": "Unauthorized"}, status=403)
         
         count = await get_users_count()
-        recent = await get_recent_users(50)
+        recent = await get_recent_users(200)
         return web.json_response({"count": count, "users": recent})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
