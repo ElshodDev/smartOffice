@@ -124,12 +124,29 @@ async def get_recent_users(limit: int = 50) -> list[dict]:
     """Oxirgi qo'shilgan foydalanuvchilar ro'yxatini qaytaradi."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT telegram_id, full_name, joined_date FROM users ORDER BY id DESC LIMIT ?", 
+            "SELECT telegram_id, full_name, joined_date, usage_count FROM users ORDER BY id DESC LIMIT ?", 
             (limit,)
         ) as cursor:
             rows = await cursor.fetchall()
             return [
-                {"id": row[0], "name": row[1], "date": row[2]} 
+                {"id": row[0], "name": row[1], "date": row[2], "usage": row[3] or 0} 
                 for row in rows
             ]
 
+async def get_user_profile(telegram_id: int) -> dict | None:
+    """Bitta foydalanuvchining to'liq profil ma'lumotlarini qaytaradi."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT telegram_id, full_name, joined_date, usage_count, referrer_id FROM users WHERE telegram_id = ?",
+            (telegram_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "id": row[0],
+                "name": row[1],
+                "joined_date": row[2],
+                "usage_count": row[3] or 0,
+                "referrer_id": row[4],
+            }

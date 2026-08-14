@@ -38,7 +38,7 @@ from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_dail
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
 from middlewares.subscription import SubscriptionMiddleware
-from services.database import create_table, get_users_count, get_recent_users
+from services.database import create_table, get_users_count, get_recent_users, get_user_profile
 from config import ADMIN_ID
 from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
 
@@ -57,6 +57,21 @@ async def api_stats(request: web.Request):
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
+async def api_me(request: web.Request):
+    """Foydalanuvchining o'z profil ma'lumotlari"""
+    try:
+        user_id_str = request.query.get("user_id", "")
+        if not user_id_str or not user_id_str.isdigit():
+            return web.json_response({"error": "user_id required"}, status=400)
+        user_id = int(user_id_str)
+        profile = await get_user_profile(user_id)
+        if not profile:
+            return web.json_response({"error": "not found"}, status=404)
+        total = await get_users_count()
+        return web.json_response({"profile": profile, "total_users": total})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
 async def index(request):
     return web.FileResponse('./webapp/index.html')
 
@@ -64,6 +79,7 @@ async def start_dummy_server(bot):
     app = web.Application()
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/api/stats", api_stats)
+    app.router.add_get("/api/me", api_me)
     app.router.add_get("/", index)
     app.router.add_get("/form-editor", serve_form_editor)
     app.router.add_get("/forms/{filename}", serve_form_image)
