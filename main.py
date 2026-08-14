@@ -50,27 +50,25 @@ async def api_stats(request: web.Request):
         user_id_str = request.query.get("user_id", "")
         if user_id_str != str(ADMIN_ID):
             return web.json_response({"error": "Unauthorized"}, status=403)
-        
         count = await get_users_count()
         recent = await get_recent_users(200)
         return web.json_response({"count": count, "users": recent})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-async def api_me(request: web.Request):
-    """Foydalanuvchining o'z profil ma'lumotlari"""
+async def api_user_profile(request: web.Request):
+    """Har bir foydalanuvchining o'z profilini ko'rishi uchun endpoint."""
     try:
         user_id_str = request.query.get("user_id", "")
         if not user_id_str or not user_id_str.isdigit():
-            return web.json_response({"error": "user_id required"}, status=400)
-        user_id = int(user_id_str)
-        profile = await get_user_profile(user_id)
+            return web.json_response({"error": "Invalid user_id"}, status=400)
+        profile = await get_user_profile(int(user_id_str))
         if not profile:
-            return web.json_response({"error": "not found"}, status=404)
-        total = await get_users_count()
-        return web.json_response({"profile": profile, "total_users": total})
+            return web.json_response({"error": "User not found"}, status=404)
+        return web.json_response(profile)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
 
 async def index(request):
     return web.FileResponse('./webapp/index.html')
@@ -79,7 +77,7 @@ async def start_dummy_server(bot):
     app = web.Application()
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/api/stats", api_stats)
-    app.router.add_get("/api/me", api_me)
+    app.router.add_get("/api/user-profile", api_user_profile)
     app.router.add_get("/", index)
     app.router.add_get("/form-editor", serve_form_editor)
     app.router.add_get("/forms/{filename}", serve_form_image)

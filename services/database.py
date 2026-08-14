@@ -134,7 +134,7 @@ async def get_recent_users(limit: int = 50) -> list[dict]:
             ]
 
 async def get_user_profile(telegram_id: int) -> dict | None:
-    """Bitta foydalanuvchining to'liq profil ma'lumotlarini qaytaradi."""
+    """Bitta foydalanuvchining to'liq profilini qaytaradi."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT telegram_id, full_name, joined_date, usage_count, referrer_id FROM users WHERE telegram_id = ?",
