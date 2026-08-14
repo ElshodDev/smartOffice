@@ -18,11 +18,11 @@ def get_converter_hub_menu() -> InlineKeyboardMarkup:
     ])
 
 
-@router.message(F.text == "🔄 Tarjimon & Konvertor")
+@router.message(F.text == "🔄 Format o'zgartirish va Tarjima")
 async def show_converter_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "🔄 <b>Tarjimon & Konvertor</b>\n\n"
+        "🔄 <b>Format o'zgartirish va Tarjima</b>\n\n"
         "Qaysi funksiyadan foydalanmoqchisiz?",
         parse_mode="HTML",
         reply_markup=get_converter_hub_menu()

@@ -69,7 +69,7 @@ def rel_hint(role: str) -> str:
 
 
 # ── Boshlash ──
-@router.message(F.text == "📋 Obyektivka Yaratish")
+@router.message(F.text == "📋 Ma'lumotnoma (Obyektivka)")
 async def start_report(message: Message, state: FSMContext):
     await state.clear()
 

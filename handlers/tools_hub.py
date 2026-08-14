@@ -20,11 +20,11 @@ def get_tools_hub_menu() -> InlineKeyboardMarkup:
     ])
 
 
-@router.message(F.text == "🛠 Qulay Vositalar")
+@router.message(F.text == "🛠 Boshqa qulayliklar")
 async def show_tools_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "🛠 <b>Qulay Vositalar</b>\n\n"
+        "🛠 <b>Boshqa qulayliklar</b>\n\n"
         "Qaysi funksiyadan foydalanmoqchisiz?",
         parse_mode="HTML",
         reply_markup=get_tools_hub_menu()

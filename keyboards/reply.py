@@ -6,16 +6,16 @@ def get_main_menu() -> ReplyKeyboardMarkup:
 
     keyboard = [
         [
-            KeyboardButton(text="📊 Excel Asboblari"),
-            KeyboardButton(text="📄 PDF Asboblari"),
+            KeyboardButton(text="📊 Excel bilan ishlash"),
+            KeyboardButton(text="📄 PDF bilan ishlash"),
         ],
         [
-            KeyboardButton(text="📝 Word & Hujjat"),
-            KeyboardButton(text="🔄 Tarjimon & Konvertor"),
+            KeyboardButton(text="📝 Word bilan ishlash"),
+            KeyboardButton(text="🔄 Format o'zgartirish va Tarjima"),
         ],
         [
-            KeyboardButton(text="🛠 Qulay Vositalar"),
-            KeyboardButton(text="🤖 AI Yordamchi"),
+            KeyboardButton(text="🛠 Boshqa qulayliklar"),
+            KeyboardButton(text="🤖 AI Yordamchi (Savol-javob)"),
         ],
         [
             KeyboardButton(text="⏰ Eslatmalar"),
@@ -26,11 +26,11 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
         ],
         [
-            KeyboardButton(text="📋 Obyektivka Yaratish"),
+            KeyboardButton(text="📋 Ma'lumotnoma (Obyektivka)"),
             KeyboardButton(text="📞 Admin / Buyurtma"),
         ],
         [
-            KeyboardButton(text="🔗 Ulashish"),
+            KeyboardButton(text="🔗 Do'stlarga ulashish"),
             KeyboardButton(text="🛒 Xizmatlarim"),
         ],
     ]

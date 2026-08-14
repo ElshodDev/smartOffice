@@ -321,3 +321,58 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
         if os.path.exists(file_path):
             os.remove(file_path)
         await state.clear()
+
+# ──────────────────────────────────────────────
+# WORD DAN PDF GA O'GIRISH
+# ──────────────────────────────────────────────
+class WordToPdfStates(StatesGroup):
+    waiting_for_word = State()
+
+@router.callback_query(F.data == "word_to_pdf")
+async def word_to_pdf_start(callback, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer(
+        "📎 PDF ga o'girish uchun <b>.docx</b> faylni yuboring:",
+        parse_mode="HTML"
+    )
+    await state.set_state(WordToPdfStates.waiting_for_word)
+
+@router.message(WordToPdfStates.waiting_for_word, F.document)
+async def process_word_to_pdf(message: Message, state: FSMContext, bot: Bot):
+    doc_file = message.document
+    if not doc_file.file_name.endswith('.docx'):
+        await message.answer("Iltimos, faqat <b>.docx</b> formatidagi fayl yuboring.", parse_mode="HTML")
+        return
+
+    os.makedirs("temp", exist_ok=True)
+    input_path = f"temp/to_pdf_{doc_file.file_id}.docx"
+    output_path = f"temp/converted_{doc_file.file_id}.pdf"
+    
+    await bot.download(doc_file, destination=input_path)
+    msg = await message.answer("Word fayli PDF ga o'girilmoqda... ⏳")
+
+    try:
+        from docx2pdf import convert
+        convert(input_path, output_path)
+        
+        if os.path.exists(output_path):
+            result = FSInputFile(output_path, filename=doc_file.file_name.replace('.docx', '.pdf'))
+            await message.answer_document(
+                document=result,
+                caption="✅ Fayl PDF formatiga o'girildi!"
+            )
+        else:
+            await msg.edit_text("❌ Konvertatsiya jarayonida xatolik yuz berdi.")
+            
+    except Exception as e:
+        logging.error(f"Word -> PDF error: {e}")
+        await msg.edit_text("❌ Xatolik yuz berdi. Bu funksiya serverda MS Word o'rnatilgan bo'lishini talab qiladi.")
+    finally:
+        for path in [input_path, output_path]:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except:
+                    pass
+        await msg.delete()
+        await state.clear()

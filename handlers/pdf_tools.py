@@ -29,11 +29,11 @@ def get_pdf_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🔄 PDF ➡️ Word", callback_data="pdf_to_docx")],
     ])
 
-@router.message(F.text == "📄 PDF Asboblari")
-async def show_pdf_tools(message: Message, state: FSMContext):
+@router.message(F.text == "📄 PDF bilan ishlash")
+async def show_pdf_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "📄 <b>PDF Asboblari</b>\n\nQaysi amaldan foydalanasiz?",
+        "📄 <b>PDF bilan ishlash</b>\n\nQaysi amaldan foydalanasiz?",
         parse_mode="HTML",
         reply_markup=get_pdf_menu()
     )

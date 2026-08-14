@@ -13,17 +13,18 @@ router = Router()
 
 def get_word_hub_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template")],
-        [InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read")],
+        [InlineKeyboardButton(text="📝 Word shablonni ma'lumotlar bilan to'ldirish", callback_data="word_fill_template")],
+        [InlineKeyboardButton(text="📖 Word hujjatni bot ichida o'qish", callback_data="word_read")],
+        [InlineKeyboardButton(text="📄 Word hujjatni PDF ga o'girish", callback_data="word_to_pdf")],
         [InlineKeyboardButton(text="📄 Namuna shablon olish", callback_data="word_sample")],
     ])
 
 
-@router.message(F.text == "📝 Word & Hujjat")
+@router.message(F.text == "📝 Word bilan ishlash")
 async def show_word_hub(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "📝 <b>Word & Hujjat</b>\n\n"
+        "📝 <b>Word bilan ishlash</b>\n\n"
         "Qaysi funksiyadan foydalanmoqchisiz?",
         parse_mode="HTML",
         reply_markup=get_word_hub_menu()

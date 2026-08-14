@@ -5,7 +5,6 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,8 +12,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # Eng yangi va tezkor Gemini modeli (hozirgi versiyalarga mos)
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     model = None
 
@@ -23,22 +21,21 @@ router = Router()
 class AIStates(StatesGroup):
     chatting = State()
 
-@router.message(F.text == "🤖 AI Yordamchi")
+@router.message(F.text == "🤖 AI Yordamchi (Savol-javob)")
 async def start_ai_chat(message: Message, state: FSMContext):
     await state.clear()
 
     if not model:
         await message.answer(
             "⚠️ <b>AI Yordamchi o'chirilgan!</b>\n\n"
-            "Ushbu funksiya ishlashi uchun <code>GEMINI_API_KEY</code> kiritilishi kerak.\n"
-            "Key oling: https://aistudio.google.com/",
+            "Ushbu funksiya ishlashi uchun <code>GEMINI_API_KEY</code> kerak.",
             parse_mode="HTML"
         )
         return
 
     await message.answer(
         "🤖 <b>Sun'iy Intellekt (Gemini) bilan suhbat</b>\n\n"
-        "Menga istalgan savolingizni bering yoki matn yozing.\n"
+        "Mendan bot haqida, hujjatlar bilan ishlash bo'yicha yoki boshqa savollarni so'rashingiz mumkin.\n"
         "<i>Chiqish uchun /cancel yoki boshqa menyu tugmasini bosing.</i>",
         parse_mode="HTML"
     )
@@ -46,19 +43,33 @@ async def start_ai_chat(message: Message, state: FSMContext):
 
 @router.message(AIStates.chatting, F.text)
 async def process_ai_message(message: Message, state: FSMContext):
-    # Komandalarni va menyu tugmalarini ushlamasligi uchun tekshiramiz
     if message.text.startswith('/'):
         return
         
     if not model:
-        # Agar AI yoqilmagan bo'lsa, oddiy xabar qaytaramiz
         await message.answer("Iltimos, pastdagi menyudan foydalaning 👇")
         return
         
     msg = await message.answer("✍️ <i>AI o'ylamoqda...</i>", parse_mode="HTML")
     
+    bot_context = """
+Sen 'Smart Office' Telegram botining rasmiy yordamchisisan.
+Sening vazifang - foydalanuvchilarga bot imkoniyatlarini tushuntirish va ofis ishlarida maslahat berish.
+
+Bot imkoniyatlari:
+1. Excel fayllar bilan ishlash: Faylni kerakli qismlarga bo'lish, dublikatlarni tozalash, birlashtirish, grafiklar chizish.
+2. PDF fayllar bilan ishlash: PDF larni birlashtirish, parol qo'yish, varoqlarga ajratish.
+3. Word fayllar bilan ishlash: Shablon to'ldirish, Wordni o'qish, Word dan PDF ga o'girish.
+4. Obyektivka (Ma'lumotnoma) yaratish: To'liq davlat standartidagi PDF obyektivka tayyorlash.
+5. Konvertatsiya: Formatlarni o'zgartirish (rasmni matnga o'girish - OCR, va h.k).
+
+QAT'IY QOIDALAR (GUARDRAILS):
+- Davlat sirlari, shaxsiy ma'lumotlar (PII), siyosat yoki noqonuniy harakatlar haqida ma'lumot bermaysan. Agar shunday savol kelsa, "Kechirasiz, menda bu borada ma'lumot berish vakolati yo'q, men faqat bot va hujjat ishlari bo'yicha yordam beraman" deb javob ber.
+- Qisqa, aniq va foydali javob ber. O'zbek tilida, xushmuomala yoz.
+"""
+    
     try:
-        prompt = f"Sen 'Smart Office' Telegram botining rasmiy yordamchisisan. Qisqa, aniq va foydali javob ber. O'zbek tilida yoz. Foydalanuvchi so'rovi: {message.text}"
+        prompt = f"{bot_context}\n\nFoydalanuvchi so'rovi: {message.text}"
         
         response = model.generate_content(prompt)
         answer = response.text
