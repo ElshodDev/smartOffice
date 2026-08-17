@@ -13,8 +13,8 @@ router = Router()
 
 def get_word_hub_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Word shablonni ma'lumotlar bilan to'ldirish", callback_data="word_fill_template")],
-        [InlineKeyboardButton(text="📖 Word hujjatni bot ichida o'qish", callback_data="word_read")],
+        [InlineKeyboardButton(text="📝 Word shablonni to'ldirish", callback_data="word_fill_template")],
+        [InlineKeyboardButton(text="📖 Word hujjatni o'qish (va Imzo qo'yish)", callback_data="word_read")]
     ])
 
 

@@ -17,15 +17,21 @@ BOT_VERSION = "2.0"
 WELCOME_TEXT = (
     "🏢 <b>Smart Office Bot</b> ga xush kelibsiz!\n"
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    "Men sizning shaxsiy ofis yordamchingizman. "
-    "Menda quyidagi imkoniyatlar bor:\n\n"
+    "Men sizning shaxsiy ofis yordamchingizman.\n"
+    "Menda quyidagi qulayliklar bor:\n\n"
     
-    "📁 <b>Hujjatlar bilan ishlash:</b> Excel, PDF, Word fayllarni tahrirlash va Obyektivka yaratish.\n"
-    "🔄 <b>Formatlar va Tarjima:</b> Fayllarni bir formatdan ikkinchisiga o'tkazish (masalan: PDF->Word).\n"
-    "🤖 <b>AI Yordamchi:</b> Sun'iy intellekt (Gemini) bilan istalgan mavzuda suhbatlashish.\n"
-    "🌐 <b>Web Ilova:</b> Qulay veb interfeys orqali bot imkoniyatlaridan foydalanish.\n"
-    "👤 <b>Profil va Sozlamalar:</b> O'z profilingizni ko'rish va sozlamalarni o'zgartirish.\n\n"
+    "📁 <b>Hujjatlar bilan ishlash:</b>\n"
+    "Excel, PDF, Word hujjatlarini tahrirlash, qirqish, birlashtirish va imzo qo'yish. Ma'lumotnoma (Obyektivka) yaratish.\n\n"
+
+    "🔄 <b>Formatlar va Tarjima:</b>\n"
+    "Rasmni PDF ga, PDF ni Word ga va Word ni PDF ga sifatli o'girish, shuningdek matnlarni tarjima qilish.\n\n"
+
+    "🤖 <b>AI Yordamchi:</b>\n"
+    "Savollaringizga javob topish uchun sun'iy intellekt.\n\n"
     
+    "👤 <b>Profil va Sozlamalar:</b>\n"
+    "Bot sozlamalari va biz bilan aloqa.\n\n"
+
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     f"📦 Versiya: <b>{BOT_VERSION}</b>"
 )
