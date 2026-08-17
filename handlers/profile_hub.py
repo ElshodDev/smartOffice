@@ -4,15 +4,12 @@ from aiogram.fsm.context import FSMContext
 
 router = Router()
 
-from config import ADMIN_ID
+ADMIN_USERNAME = "Elshod_Developer"
 
 def get_profile_menu() -> InlineKeyboardMarkup:
-    # Admin ID ga to'g'ridan-to'g'ri o'tuvchi havola yaratamiz
-    admin_link = f"tg://user?id={ADMIN_ID}" if ADMIN_ID else "https://t.me/Telegram"
-    
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚙️ Sozlamalar", callback_data="hub_settings")],
-        [InlineKeyboardButton(text="📞 Adminga yozish", url=admin_link)]
+        [InlineKeyboardButton(text="📞 Dasturchi bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]
     ])
 
 @router.message(F.text == "👤 Profil va Sozlamalar")
@@ -29,5 +26,3 @@ async def redirect_to_settings(callback: CallbackQuery, state: FSMContext, bot):
     from handlers.settings import show_settings
     await callback.message.delete()
     await show_settings(callback.message, bot)
-
-
