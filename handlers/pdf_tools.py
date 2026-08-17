@@ -6,7 +6,8 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader
+from services.pdf_service import PdfService
 
 router = Router()
 
@@ -80,17 +81,13 @@ async def pdf_merge_execute(message: Message, state: FSMContext):
     out_path = "temp/merged_result.pdf"
     
     try:
-        writer = PdfWriter()
-        for f in files:
-            reader = PdfReader(f)
-            writer.append(reader)
-            
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
-            
-        result = FSInputFile(out_path, filename="birlashtirilgan.pdf")
-        await message.answer_document(result, caption="✅ PDF fayllar birlashtirildi!")
-        await msg.delete()
+        success = PdfService.merge_pdfs(files, out_path)
+        if success:
+            result = FSInputFile(out_path, filename="birlashtirilgan.pdf")
+            await message.answer_document(result, caption="✅ PDF fayllar birlashtirildi!")
+            await msg.delete()
+        else:
+            await msg.edit_text("❌ Xatolik yuz berdi. Ba'zi fayllar buzilgan bo'lishi mumkin.")
     except Exception as e:
         logging.error(f"PDF merge error: {traceback.format_exc()}")
         await msg.edit_text("❌ Xatolik yuz berdi. Ba'zi fayllar buzilgan bo'lishi mumkin.")
@@ -134,17 +131,13 @@ async def pdf_lock_execute(message: Message, state: FSMContext):
     
     msg = await message.answer("⏳ Parol o'rnatilmoqda...")
     try:
-        reader = PdfReader(in_path)
-        writer = PdfWriter()
-        writer.append_pages_from_reader(reader)
-        writer.encrypt(password)
-        
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
-            
-        result = FSInputFile(out_path, filename=f"locked_{original_name}")
-        await message.answer_document(result, caption=f"✅ Faylga parol o'rnatildi.\n\n🔑 Parol: ||{password}||", parse_mode="MarkdownV2")
-        await msg.delete()
+        success = PdfService.lock_pdf(in_path, out_path, password)
+        if success:
+            result = FSInputFile(out_path, filename=f"locked_{original_name}")
+            await message.answer_document(result, caption=f"✅ Faylga parol o'rnatildi.\n\n🔑 Parol: ||{password}||", parse_mode="MarkdownV2")
+            await msg.delete()
+        else:
+            await msg.edit_text("❌ Xatolik yuz berdi.")
     except Exception as e:
         await msg.edit_text("❌ Xatolik yuz berdi.")
     finally:
@@ -209,22 +202,13 @@ async def pdf_extract_execute(message: Message, state: FSMContext):
         
     msg = await message.answer("⏳ Ajratilmoqda...")
     try:
-        reader = PdfReader(in_path)
-        writer = PdfWriter()
-        
-        for p in sorted(pages_to_extract):
-            if 1 <= p <= total:
-                writer.add_page(reader.pages[p - 1])
-                
-        if len(writer.pages) == 0:
-            return await msg.edit_text("❌ Hech qaysi sahifa topilmadi (raqamlar fayl hajmidan katta bo'lishi mumkin).")
-            
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
-            
-        result = FSInputFile(out_path, filename="ajratilgan_sahifalar.pdf")
-        await message.answer_document(result, caption=f"✅ Ajratib olindi: {len(writer.pages)} sahifa.")
-        await msg.delete()
+        extracted_count = PdfService.extract_pages(in_path, out_path, pages_to_extract, total)
+        if extracted_count > 0:
+            result = FSInputFile(out_path, filename="ajratilgan_sahifalar.pdf")
+            await message.answer_document(result, caption=f"✅ Ajratib olindi: {extracted_count} sahifa.")
+            await msg.delete()
+        else:
+            await msg.edit_text("❌ Hech qaysi sahifa topilmadi (raqamlar fayl hajmidan katta bo'lishi mumkin).")
     except Exception as e:
         await msg.edit_text("❌ Xatolik yuz berdi.")
     finally:
@@ -268,34 +252,13 @@ async def pdf_watermark_execute(message: Message, state: FSMContext):
     msg = await message.answer("⏳ Watermark qo'yilmoqda...")
     
     try:
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import A4
-        from pypdf import PdfReader, PdfWriter
-        
-        # 1. Matnli pdf yaratamiz (watermark qatlami)
-        c = canvas.Canvas(wm_pdf, pagesize=A4)
-        c.setFont("Helvetica-Bold", 60)
-        c.setFillColorRGB(0.5, 0.5, 0.5, alpha=0.3) # Yarim shaffof kulrang
-        c.translate(300, 400)
-        c.rotate(45)
-        c.drawCentredString(0, 0, wm_text)
-        c.save()
-        
-        # 2. Birlashtirish
-        watermark = PdfReader(wm_pdf).pages[0]
-        reader = PdfReader(in_path)
-        writer = PdfWriter()
-        
-        for page in reader.pages:
-            page.merge_page(watermark)
-            writer.add_page(page)
-            
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
-            
-        result = FSInputFile(out_path, filename=f"wm_{original_name}")
-        await message.answer_document(result, caption="✅ Watermark o'rnatildi!")
-        await msg.delete()
+        success = PdfService.add_watermark(in_path, out_path, wm_text)
+        if success:
+            result = FSInputFile(out_path, filename=f"wm_{original_name}")
+            await message.answer_document(result, caption="✅ Watermark o'rnatildi!")
+            await msg.delete()
+        else:
+            await msg.edit_text("❌ Xatolik yuz berdi.")
     except Exception as e:
         logging.error(f"Watermark xato: {e}")
         await msg.edit_text("❌ Xatolik yuz berdi.")
@@ -305,44 +268,4 @@ async def pdf_watermark_execute(message: Message, state: FSMContext):
         await state.clear()
 
 
-# ── 5. PDF DAN WORD GA O'GIRISH ──
-@router.callback_query(F.data == "pdf_to_docx")
-async def pdf_to_docx_start(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await callback.message.edit_text(
-        "🔄 <b>PDF dan Word ga</b>\n\nPDF faylni yuboring.",
-        parse_mode="HTML"
-    )
-    await state.set_state(PdfStates.docx_waiting_file)
 
-@router.message(PdfStates.docx_waiting_file, F.document)
-async def pdf_to_docx_execute(message: Message, state: FSMContext, bot: Bot):
-    doc = message.document
-    if not doc.file_name.lower().endswith(".pdf"):
-        return await message.answer("❌ Faqat PDF!")
-        
-    msg = await message.answer("⏳ O'girilmoqda... Bu biroz vaqt olishi mumkin.")
-    
-    os.makedirs("temp", exist_ok=True)
-    in_path = f"temp/to_docx_{doc.file_id}.pdf"
-    base_name = os.path.splitext(doc.file_name)[0]
-    out_path = f"temp/{base_name}.docx"
-    
-    await bot.download(doc, destination=in_path)
-    
-    try:
-        from pdf2docx import Converter
-        cv = Converter(in_path)
-        cv.convert(out_path, start=0, end=None)
-        cv.close()
-        
-        result = FSInputFile(out_path, filename=f"{base_name}.docx")
-        await message.answer_document(result, caption="✅ PDF muvaffaqiyatli Word formatiga o'girildi!")
-        await msg.delete()
-    except Exception as e:
-        logging.error(f"PDF2Docx xato: {e}")
-        await msg.edit_text("❌ Konvertatsiya vaqtida xato yuz berdi (Fayl juda murakkab yoki himoyalangan bo'lishi mumkin).")
-    finally:
-        for f in [in_path, out_path]:
-            if f and os.path.exists(f): os.remove(f)
-        await state.clear()
