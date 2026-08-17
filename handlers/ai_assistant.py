@@ -12,7 +12,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-3.5-flash')
 else:
     model = None
 
@@ -77,7 +77,9 @@ QAT'IY QOIDALAR (GUARDRAILS):
         if len(answer) > 4000:
             answer = answer[:4000] + "\n\n...(javob juda uzun)"
             
-        await msg.edit_text(answer, parse_mode="Markdown")
+        # Markdown yulduzchalarini olib tashlaymiz (Telegramda xato bermasligi uchun)
+        answer = answer.replace("**", "").replace("*", "")
+        await msg.edit_text(answer)
         
     except Exception as e:
         logging.error(f"Gemini API xatosi: {e}")
