@@ -13,7 +13,8 @@ from handlers import (
     excel_hub,
     word_hub,
     converter_hub,
-    tools_hub,
+    # ── Yangi navigatsiya ──
+    navigation,
     # ── Funksional handlerlari ──
     excel_tools,
     excel_utils,
@@ -22,17 +23,11 @@ from handlers import (
     converter,
     format_converter,
     word_tools,
-    ocr_tools,
-    utility_tools,
-    search_data,
     pdf_tools,
-    reminders,
     ai_assistant,
     settings,
     scheduler_tools,
-    form_filler,
     report_generator,
-    promotion,
 )
 from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_daily_job
 from middlewares.state_clear import StateClearMiddleware
@@ -124,11 +119,12 @@ async def main():
     # ── Ro'yxatdan o'tkazish (Routers) ──────────────
     dp.include_router(start.router)
     dp.include_router(admin.router)
+    # ── Yangi navigatsiya hub ──
+    dp.include_router(navigation.router)
     # ── Hub routerlari (asosiy menyu kategoriyalari) ──
     dp.include_router(excel_hub.router)
     dp.include_router(word_hub.router)
     dp.include_router(converter_hub.router)
-    dp.include_router(tools_hub.router)
     # ── Funksional routerlar (hub ichidan chaqiriladi) ──
     dp.include_router(excel_tools.router)
     dp.include_router(excel_utils.router)
@@ -137,16 +133,10 @@ async def main():
     dp.include_router(converter.router)
     dp.include_router(format_converter.router)
     dp.include_router(word_tools.router)
-    dp.include_router(ocr_tools.router)
-    dp.include_router(utility_tools.router)
-    dp.include_router(search_data.router)
     dp.include_router(pdf_tools.router)
-    dp.include_router(reminders.router)
     dp.include_router(settings.router)
     dp.include_router(scheduler_tools.router)
-    dp.include_router(form_filler.router)
     dp.include_router(report_generator.router)
-    dp.include_router(promotion.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──
     dp.include_router(ai_assistant.router)
 

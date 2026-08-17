@@ -19,20 +19,13 @@ WELCOME_TEXT = (
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "Men sizning shaxsiy ofis yordamchingizman. "
     "Menda quyidagi imkoniyatlar bor:\n\n"
-
-    "<b>📁 Asosiy Bo'limlar:</b>\n"
-    "📊 <b>Excel bilan ishlash:</b> Excelni qirqish, bo'lish, dublikat tozalash, birlashtirish, grafik chizish.\n"
-    "📄 <b>PDF bilan ishlash:</b> PDF larni birlashtirish, parol qo'yish, sahifaga ajratish, watermark qo'yish, PDF ni Word ga o'girish.\n"
-    "📝 <b>Word bilan ishlash:</b> Shablon to'ldirish, o'qish va Word ni PDF ga o'girish.\n"
-    "🔄 <b>Format o'zgartirish va Tarjima:</b> Lotin-Kirill, UZ-EN-RU tarjima va har qanday fayl formatini o'zgartirish.\n"
-    "🛠 <b>Boshqa qulayliklar:</b> Rasmdan matn o'qish (OCR), QR Kod yaratish, URL qisqartirish.\n\n"
-
-    "<b>Boshqalar:</b>\n"
-    "📋 <b>Ma'lumotnoma (Obyektivka):</b> Rasmiy hujjat PDF formatida\n"
-    "🤖 <b>AI Yordamchi:</b> Gemini AI bilan istalgan mavzuda suhbat\n"
-    "⏰ <b>Eslatmalar</b> — O'zingizga eslatma va vazifalar belgilash\n"
-    "🔗 <b>Ulashish</b> — Do'stlarni taklif qiling\n"
-    "🛒 <b>Xizmatlarim</b> — Dasturchi bilan aloqa va maxsus xizmatlar\n\n"
+    
+    "📁 <b>Hujjatlar bilan ishlash:</b> Excel, PDF, Word fayllarni tahrirlash va Obyektivka yaratish.\n"
+    "🔄 <b>Formatlar va Tarjima:</b> Fayllarni bir formatdan ikkinchisiga o'tkazish (masalan: PDF->Word).\n"
+    "🤖 <b>AI Yordamchi:</b> Sun'iy intellekt (Gemini) bilan istalgan mavzuda suhbatlashish.\n"
+    "🌐 <b>Web Ilova:</b> Qulay veb interfeys orqali bot imkoniyatlaridan foydalanish.\n"
+    "👤 <b>Profil va Sozlamalar:</b> O'z profilingizni ko'rish va sozlamalarni o'zgartirish.\n\n"
+    
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     f"📦 Versiya: <b>{BOT_VERSION}</b>"
 )

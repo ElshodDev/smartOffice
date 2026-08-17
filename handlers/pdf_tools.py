@@ -23,10 +23,8 @@ class PdfStates(StatesGroup):
 def get_pdf_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📎 Birlashtirish", callback_data="pdf_merge")],
-        [InlineKeyboardButton(text="🔒 Parol qo'yish", callback_data="pdf_lock")],
         [InlineKeyboardButton(text="✂️ Sahifalarni ajratish", callback_data="pdf_extract")],
         [InlineKeyboardButton(text="©️ Watermark qo'yish", callback_data="pdf_watermark")],
-        [InlineKeyboardButton(text="🔄 PDF ➡️ Word", callback_data="pdf_to_docx")],
     ])
 
 @router.message(F.text == "📄 PDF bilan ishlash")
@@ -101,59 +99,7 @@ async def pdf_merge_execute(message: Message, state: FSMContext):
             if os.path.exists(f): os.remove(f)
         await state.clear()
 
-# ── 2. PAROL QO'YISH ──
-@router.callback_query(F.data == "pdf_lock")
-async def pdf_lock_start(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await callback.message.edit_text(
-        "🔒 <b>PDF ga parol qo'yish</b>\n\n"
-        "Parol o'rnatmoqchi bo'lgan PDF faylni yuboring.",
-        parse_mode="HTML"
-    )
-    await state.set_state(PdfStates.lock_waiting_file)
 
-@router.message(PdfStates.lock_waiting_file, F.document)
-async def pdf_lock_file(message: Message, state: FSMContext, bot: Bot):
-    doc = message.document
-    if not doc.file_name.lower().endswith(".pdf"):
-        return await message.answer("❌ Faqat PDF fayl qabul qilinadi.")
-        
-    os.makedirs("temp", exist_ok=True)
-    path = f"temp/lock_{doc.file_id}.pdf"
-    await bot.download(doc, destination=path)
-    
-    await state.update_data(lock_path=path, original_name=doc.file_name)
-    await state.set_state(PdfStates.lock_waiting_password)
-    await message.answer("✍️ Endi o'rnatmoqchi bo'lgan parolni yozing:")
-
-@router.message(PdfStates.lock_waiting_password, F.text)
-async def pdf_lock_execute(message: Message, state: FSMContext):
-    password = message.text
-    data = await state.get_data()
-    in_path = data.get("lock_path")
-    original_name = data.get("original_name")
-    out_path = f"temp/locked_{original_name}"
-    
-    msg = await message.answer("⏳ Parol o'rnatilmoqda...")
-    try:
-        reader = PdfReader(in_path)
-        writer = PdfWriter()
-        writer.append_pages_from_reader(reader)
-        writer.encrypt(password)
-        
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
-            
-        result = FSInputFile(out_path, filename=f"locked_{original_name}")
-        await message.answer_document(result, caption=f"✅ Faylga parol o'rnatildi.\n\n🔑 Parol: ||{password}||", parse_mode="MarkdownV2")
-        await msg.delete()
-    except Exception as e:
-        await msg.edit_text("❌ Xatolik yuz berdi.")
-    finally:
-        for f in [in_path, out_path]:
-            if f and os.path.exists(f): os.remove(f)
-        await state.clear()
-        
 # ── 3. SAHIFALARNI QIRQISH ──
 @router.callback_query(F.data == "pdf_extract")
 async def pdf_extract_start(callback: CallbackQuery, state: FSMContext):
@@ -307,44 +253,4 @@ async def pdf_watermark_execute(message: Message, state: FSMContext):
         await state.clear()
 
 
-# ── 5. PDF DAN WORD GA O'GIRISH ──
-@router.callback_query(F.data == "pdf_to_docx")
-async def pdf_to_docx_start(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await callback.message.edit_text(
-        "🔄 <b>PDF dan Word ga</b>\n\nPDF faylni yuboring.",
-        parse_mode="HTML"
-    )
-    await state.set_state(PdfStates.docx_waiting_file)
 
-@router.message(PdfStates.docx_waiting_file, F.document)
-async def pdf_to_docx_execute(message: Message, state: FSMContext, bot: Bot):
-    doc = message.document
-    if not doc.file_name.lower().endswith(".pdf"):
-        return await message.answer("❌ Faqat PDF!")
-        
-    msg = await message.answer("⏳ O'girilmoqda... Bu biroz vaqt olishi mumkin.")
-    
-    os.makedirs("temp", exist_ok=True)
-    in_path = f"temp/to_docx_{doc.file_id}.pdf"
-    base_name = os.path.splitext(doc.file_name)[0]
-    out_path = f"temp/{base_name}.docx"
-    
-    await bot.download(doc, destination=in_path)
-    
-    try:
-        from pdf2docx import Converter
-        cv = Converter(in_path)
-        cv.convert(out_path, start=0, end=None)
-        cv.close()
-        
-        result = FSInputFile(out_path, filename=f"{base_name}.docx")
-        await message.answer_document(result, caption="✅ PDF muvaffaqiyatli Word formatiga o'girildi!")
-        await msg.delete()
-    except Exception as e:
-        logging.error(f"PDF2Docx xato: {e}")
-        await msg.edit_text("❌ Konvertatsiya vaqtida xato yuz berdi (Fayl juda murakkab yoki himoyalangan bo'lishi mumkin).")
-    finally:
-        for f in [in_path, out_path]:
-            if f and os.path.exists(f): os.remove(f)
-        await state.clear()

@@ -19,108 +19,11 @@ class WordToolsStates(StatesGroup):
     waiting_for_read_file = State()
 
 def get_word_menu():
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    keyboard = [
-        [
-            InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template"),
-            InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read")
-        ],
-        [
-            InlineKeyboardButton(text="📄 Namuna shablon olish", callback_data="word_sample")
-        ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    pass # No longer needed since word_hub has the inline keyboard
 
-# ──────────────────────────────────────────────
-# ENTRY POINT
-# ──────────────────────────────────────────────
-@router.message(F.text == "📝 Word Hujjat")
-async def start_word_tools(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "📝 <b>Word Hujjat vositalari</b>\n\nQuyidagi amallardan birini tanlang:",
-        parse_mode="HTML",
-        reply_markup=get_word_menu()
-    )
+# Entry point removed, handled by word_hub
 
-# ──────────────────────────────────────────────
-# NAMUNA SHABLON YARATISH
-# ──────────────────────────────────────────────
-@router.callback_query(F.data == "word_sample")
-async def send_sample_template(callback, bot: Bot):
-    await callback.answer()
-    msg = await callback.message.answer("Namuna shablon yaratilmoqda... ⏳")
-
-    os.makedirs("temp", exist_ok=True)
-    sample_path = "temp/namuna_shablon.docx"
-
-    try:
-        doc = Document()
-
-        # Sarlavha uslubi
-        title = doc.add_heading("XIZMAT KO'RSATISH SHARTNOMASI", level=1)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        doc.add_paragraph()
-
-        # Asosiy ma'lumotlar
-        p = doc.add_paragraph()
-        p.add_run("Sana: ").bold = True
-        p.add_run("{{sana}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Foydalanuvchi ismi: ").bold = True
-        p.add_run("{{ism}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Telefon raqami: ").bold = True
-        p.add_run("{{telefon}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Manzil: ").bold = True
-        p.add_run("{{manzil}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Xizmat nomi: ").bold = True
-        p.add_run("{{xizmat}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Narxi: ").bold = True
-        p.add_run("{{narx}} so'm")
-
-        doc.add_paragraph()
-        doc.add_paragraph("Imzo: _______________________")
-
-        # Izoh qo'shing
-        doc.add_paragraph()
-        note = doc.add_paragraph()
-        run = note.add_run(
-            "📌 Eslatma: {{...}} ichidagi so'zlar — o'zgaruvchilar. "
-            "Ushbu shablonni botga yuboring va qiymatlarni kiriting."
-        )
-        run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-        run.font.size = Pt(10)
-
-        doc.save(sample_path)
-
-        result = FSInputFile(sample_path, filename="namuna_shablon.docx")
-        await bot.send_document(
-            chat_id=callback.message.chat.id,
-            document=result,
-            caption=(
-                "✅ <b>Namuna shablon!</b>\n\n"
-                "Ushbu faylni yuklab oling, kerak bo'lsa tahrirlang.\n"
-                "So'ng <b>«📝 Shablon to'ldirish»</b> tugmasini bosib botga yuboring."
-            ),
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logging.error(f"Namuna shablon yaratishda xato: {e}")
-        await callback.message.answer("❌ Xatolik yuz berdi.")
-    finally:
-        if os.path.exists(sample_path):
-            os.remove(sample_path)
-        await msg.delete()
+# Namuna shablon removed
 
 # ──────────────────────────────────────────────
 # SHABLON TO'LDIRISH ({{placeholder}} → qiymat)
@@ -300,26 +203,113 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
             return
 
         header = f"📄 <b>{doc_file.file_name}</b>\n{'─' * 28}\n\n"
-        # 4096 - header uzunligini chegiramiz
         max_len = 4096 - len(header)
+        
+        # Check for signature
+        needs_signature = False
+        if "imzo:" in full_text.lower() or "____" in full_text:
+            needs_signature = True
+            
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        markup = None
+        if needs_signature:
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✍️ Imzo qo'yish", callback_data=f"sign_doc_{doc_file.file_id}")]
+            ])
+            await state.update_data(sign_doc_path=file_path, sign_doc_name=doc_file.file_name)
 
         if len(full_text) <= max_len:
-            await msg.edit_text(header + full_text, parse_mode="HTML")
+            await msg.edit_text(header + full_text, parse_mode="HTML", reply_markup=markup)
         else:
-            # Uzun matnni qismlarga bo'lib yuborish
             await msg.edit_text(header + full_text[:max_len] + "\n\n<i>... (davomi quyida)</i>", parse_mode="HTML")
             remaining = full_text[max_len:]
             while remaining:
                 chunk = remaining[:4096]
                 remaining = remaining[4096:]
-                await message.answer(chunk)
+                if not remaining and markup:
+                    await message.answer(chunk, reply_markup=markup)
+                else:
+                    await message.answer(chunk)
+                    
+        if not needs_signature:
+            os.remove(file_path)
+            await state.clear()
 
     except Exception as e:
         logging.error(f"Word faylni o'qishda xato: {e}")
         await msg.edit_text("❌ Xatolik yuz berdi. Fayl shikastlangan bo'lishi mumkin.")
-    finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+        await state.clear()
+
+class SignDocStates(StatesGroup):
+    waiting_for_signature_image = State()
+
+@router.callback_query(F.data.startswith("sign_doc_"))
+async def start_signing_doc(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer("🖼 Iltimos, o'z imzoingiz tushirilgan rasmni (orqasi oq yoki shaffof) yuboring:")
+    await state.set_state(SignDocStates.waiting_for_signature_image)
+
+@router.message(SignDocStates.waiting_for_signature_image, F.photo | F.document)
+async def process_signature_image(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    doc_path = data.get("sign_doc_path")
+    doc_name = data.get("sign_doc_name", "imzolangan.docx")
+    
+    if not doc_path or not os.path.exists(doc_path):
+        await message.answer("❌ Kechirasiz, fayl topilmadi. Iltimos Word faylni boshqatdan yuboring.")
+        await state.clear()
+        return
+        
+    os.makedirs("temp", exist_ok=True)
+    if message.photo:
+        photo = message.photo[-1]
+        img_path = f"temp/sig_{photo.file_id}.jpg"
+        await bot.download(photo.file_id, destination=img_path)
+    else:
+        doc = message.document
+        valid_exts = ('.jpg', '.jpeg', '.png')
+        if not any(doc.file_name.lower().endswith(ext) for ext in valid_exts):
+            await message.answer("Iltimos, faqat rasm (png, jpg) yuboring.")
+            return
+        img_path = f"temp/sig_{doc.file_id}.png"
+        await bot.download(doc.file_id, destination=img_path)
+        
+    msg = await message.answer("✍️ Imzo tushirilmoqda... ⏳")
+    
+    try:
+        from docx import Document as DocxDoc
+        from docx.shared import Inches
+        doc = DocxDoc(doc_path)
+        
+        signature_added = False
+        for para in doc.paragraphs:
+            if "imzo:" in para.text.lower() or "____" in para.text:
+                para.text = para.text.replace("____", "") # Tozalash
+                run = para.add_run()
+                run.add_picture(img_path, width=Inches(1.5))
+                signature_added = True
+                break
+                
+        if not signature_added:
+            # Agar aniq topilmasa oxiriga qo'shamiz
+            para = doc.add_paragraph("Imzo: ")
+            run = para.add_run()
+            run.add_picture(img_path, width=Inches(1.5))
+            
+        out_path = f"temp/signed_{doc_name}"
+        doc.save(out_path)
+        
+        result = FSInputFile(out_path, filename=f"imzolangan_{doc_name}")
+        await message.answer_document(result, caption="✅ Hujjatga imzoingiz muvaffaqiyatli tushirildi!")
+        await msg.delete()
+    except Exception as e:
+        logging.error(f"Imzo qoyish xatosi: {e}")
+        await msg.edit_text("❌ Imzo tushirishda xatolik yuz berdi.")
+    finally:
+        for f in [img_path, doc_path, out_path]:
+            if f and os.path.exists(f): os.remove(f)
         await state.clear()
 
 # ──────────────────────────────────────────────
@@ -329,7 +319,7 @@ class WordToPdfStates(StatesGroup):
     waiting_for_word = State()
 
 @router.callback_query(F.data == "word_to_pdf")
-async def word_to_pdf_start(callback, state: FSMContext):
+async def word_to_pdf_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.answer(
         "📎 PDF ga o'girish uchun <b>.docx</b> faylni yuboring:",
@@ -346,15 +336,25 @@ async def process_word_to_pdf(message: Message, state: FSMContext, bot: Bot):
 
     os.makedirs("temp", exist_ok=True)
     input_path = f"temp/to_pdf_{doc_file.file_id}.docx"
-    output_path = f"temp/converted_{doc_file.file_id}.pdf"
     
     await bot.download(doc_file, destination=input_path)
     msg = await message.answer("Word fayli PDF ga o'girilmoqda... ⏳")
 
     try:
-        from docx2pdf import convert
-        convert(input_path, output_path)
+        import subprocess
+        # Try LibreOffice first (good for Linux servers like Ubuntu)
+        process = subprocess.run(
+            ['libreoffice', '--headless', '--convert-to', 'pdf', input_path, '--outdir', 'temp'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        output_path = f"temp/to_pdf_{doc_file.file_id}.pdf"
         
+        if not os.path.exists(output_path):
+            # Fallback to docx2pdf (works on Windows/Mac)
+            from docx2pdf import convert
+            output_path = f"temp/converted_{doc_file.file_id}.pdf"
+            convert(input_path, output_path)
+            
         if os.path.exists(output_path):
             result = FSInputFile(output_path, filename=doc_file.file_name.replace('.docx', '.pdf'))
             await message.answer_document(
@@ -366,13 +366,13 @@ async def process_word_to_pdf(message: Message, state: FSMContext, bot: Bot):
             
     except Exception as e:
         logging.error(f"Word -> PDF error: {e}")
-        await msg.edit_text("❌ Xatolik yuz berdi. Bu funksiya serverda MS Word o'rnatilgan bo'lishini talab qiladi.")
+        await msg.edit_text("❌ Xatolik yuz berdi. Bu funksiya serverda LibreOffice yoki MS Word o'rnatilgan bo'lishini talab qiladi.")
     finally:
-        for path in [input_path, output_path]:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except:
-                    pass
+        if os.path.exists(input_path): os.remove(input_path)
+        # Try to clean up any created PDF
+        for f in os.listdir("temp"):
+            if f.startswith(f"to_pdf_{doc_file.file_id}") or f.startswith(f"converted_{doc_file.file_id}"):
+                try: os.remove(f"temp/{f}")
+                except: pass
         await msg.delete()
         await state.clear()

@@ -19,6 +19,9 @@ def get_converter_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📄 PDF ➡️ Word", callback_data="format_pdf2word")
         ],
         [
+            InlineKeyboardButton(text="📝 Word ➡️ PDF", callback_data="word_to_pdf")
+        ],
+        [
             InlineKeyboardButton(text="🖼 Rasm ➡️ PDF", callback_data="format_img2pdf")
         ]
     ]

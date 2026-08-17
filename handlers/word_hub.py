@@ -15,8 +15,6 @@ def get_word_hub_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Word shablonni ma'lumotlar bilan to'ldirish", callback_data="word_fill_template")],
         [InlineKeyboardButton(text="📖 Word hujjatni bot ichida o'qish", callback_data="word_read")],
-        [InlineKeyboardButton(text="📄 Word hujjatni PDF ga o'girish", callback_data="word_to_pdf")],
-        [InlineKeyboardButton(text="📄 Namuna shablon olish", callback_data="word_sample")],
     ])
 
 
