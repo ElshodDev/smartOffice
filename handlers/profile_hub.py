@@ -27,6 +27,6 @@ async def redirect_to_settings(callback: CallbackQuery, state: FSMContext, bot):
 
 @router.callback_query(F.data == "hub_admin")
 async def redirect_to_admin(callback: CallbackQuery, state: FSMContext):
-    from handlers.admin import cmd_admin
+    from handlers.feedback import start_feedback_callback
     await callback.message.delete()
-    await cmd_admin(callback.message)
+    await start_feedback_callback(callback, state)

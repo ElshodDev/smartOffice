@@ -1,6 +1,6 @@
 import logging
 from aiogram import Router, F, Bot
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from config import ADMIN_ID
@@ -14,6 +14,14 @@ class FeedbackStates(StatesGroup):
 async def start_feedback(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
+        "Adminga yozmoqchi bo'lgan murojaatingizni yuboring.\n\n"
+        "📝 Iltimos, savolingiz yoki taklifingizni batafsil yozing:"
+    )
+    await state.set_state(FeedbackStates.waiting_for_feedback)
+
+async def start_feedback_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.answer(
         "Adminga yozmoqchi bo'lgan murojaatingizni yuboring.\n\n"
         "📝 Iltimos, savolingiz yoki taklifingizni batafsil yozing:"
     )
