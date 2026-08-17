@@ -17,6 +17,8 @@ class WordToolsStates(StatesGroup):
     waiting_for_template_data  = State()
     # Word o'qish uchun holat
     waiting_for_read_file = State()
+    # Imzo qo'yish uchun holat
+    waiting_for_signature = State()
 
 def get_word_menu():
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -40,84 +42,7 @@ async def start_word_tools(message: Message, state: FSMContext):
         reply_markup=get_word_menu()
     )
 
-# ──────────────────────────────────────────────
-# NAMUNA SHABLON YARATISH
-# ──────────────────────────────────────────────
-@router.callback_query(F.data == "word_sample")
-async def send_sample_template(callback, bot: Bot):
-    await callback.answer()
-    msg = await callback.message.answer("Namuna shablon yaratilmoqda... ⏳")
 
-    os.makedirs("temp", exist_ok=True)
-    sample_path = "temp/namuna_shablon.docx"
-
-    try:
-        doc = Document()
-
-        # Sarlavha uslubi
-        title = doc.add_heading("XIZMAT KO'RSATISH SHARTNOMASI", level=1)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        doc.add_paragraph()
-
-        # Asosiy ma'lumotlar
-        p = doc.add_paragraph()
-        p.add_run("Sana: ").bold = True
-        p.add_run("{{sana}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Foydalanuvchi ismi: ").bold = True
-        p.add_run("{{ism}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Telefon raqami: ").bold = True
-        p.add_run("{{telefon}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Manzil: ").bold = True
-        p.add_run("{{manzil}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Xizmat nomi: ").bold = True
-        p.add_run("{{xizmat}}")
-
-        p = doc.add_paragraph()
-        p.add_run("Narxi: ").bold = True
-        p.add_run("{{narx}} so'm")
-
-        doc.add_paragraph()
-        doc.add_paragraph("Imzo: _______________________")
-
-        # Izoh qo'shing
-        doc.add_paragraph()
-        note = doc.add_paragraph()
-        run = note.add_run(
-            "📌 Eslatma: {{...}} ichidagi so'zlar — o'zgaruvchilar. "
-            "Ushbu shablonni botga yuboring va qiymatlarni kiriting."
-        )
-        run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-        run.font.size = Pt(10)
-
-        doc.save(sample_path)
-
-        result = FSInputFile(sample_path, filename="namuna_shablon.docx")
-        await bot.send_document(
-            chat_id=callback.message.chat.id,
-            document=result,
-            caption=(
-                "✅ <b>Namuna shablon!</b>\n\n"
-                "Ushbu faylni yuklab oling, kerak bo'lsa tahrirlang.\n"
-                "So'ng <b>«📝 Shablon to'ldirish»</b> tugmasini bosib botga yuboring."
-            ),
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logging.error(f"Namuna shablon yaratishda xato: {e}")
-        await callback.message.answer("❌ Xatolik yuz berdi.")
-    finally:
-        if os.path.exists(sample_path):
-            os.remove(sample_path)
-        await msg.delete()
 
 # ──────────────────────────────────────────────
 # SHABLON TO'LDIRISH ({{placeholder}} → qiymat)
@@ -309,6 +234,15 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
                 chunk = remaining[:4096]
                 remaining = remaining[4096:]
                 await message.answer(chunk)
+                
+        # Agar matnda Imzo joyi kabi narsalar bo'lsa, imzo qo'yish tugmasini chiqaramiz
+        if "imzo:" in full_text.lower() or "____" in full_text:
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            btn = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✍️ Hujjatga Imzo qo'yish", callback_data=f"sign_word:{doc_file.file_id}")]
+            ])
+            await message.answer("Ushbu hujjatda imzo qo'yish joyi mavjudligini aniqladim. Uni bot orqali imzolamoqchimisiz?", reply_markup=btn)
+
 
     except Exception as e:
         logging.error(f"Word faylni o'qishda xato: {e}")
@@ -318,5 +252,96 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
             try: os.remove(file_path)
             except: pass
         await state.clear()
+
+# ──────────────────────────────────────────────
+# WORD FAYLGA IMZO QO'YISH
+# ──────────────────────────────────────────────
+@router.callback_query(F.data.startswith("sign_word:"))
+async def ask_for_signature(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    file_id = callback.data.split(":")[1]
+    await state.update_data(sign_file_id=file_id)
+    await callback.message.answer(
+        "✍️ Iltimos, hujjatga qo'yiladigan Ism-Familiyangizni (yoki matnli imzo) yuboring:\n\n"
+        "<i>(Masalan: Elshod Ibodullayev)</i>",
+        parse_mode="HTML"
+    )
+    await state.set_state(WordToolsStates.waiting_for_signature)
+
+@router.message(WordToolsStates.waiting_for_signature, F.text)
+async def process_word_signature(message: Message, state: FSMContext, bot: Bot):
+    signature_text = message.text.strip()
+    data = await state.get_data()
+    file_id = data.get("sign_file_id")
+    
+    if not file_id:
+        await message.answer("❌ Fayl topilmadi, iltimos boshqatdan urinib ko'ring.")
+        await state.clear()
+        return
+
+    os.makedirs("temp", exist_ok=True)
+    input_path = f"temp/to_sign_{file_id}.docx"
+    output_path = f"temp/signed_{file_id}.docx"
+    
+    msg = await message.answer("Hujjat imzolanmoqda... ⏳")
+    
+    try:
+        file = await bot.get_file(file_id)
+        await bot.download_file(file.file_path, destination=input_path)
+        
+        from docx import Document as DocxDoc
+        doc = DocxDoc(input_path)
+        
+        signature_added = False
+        
+        # Replace 'Imzo: _____' or just '_____' near 'Imzo'
+        for para in doc.paragraphs:
+            if "imzo:" in para.text.lower() or "____" in para.text:
+                # Oson almashtirish uchun shunchaki matn oxiriga yoki chiziqchalar o'rniga qo'yamiz
+                if "____" in para.text:
+                    para.text = para.text.replace("____", signature_text, 1) # faqata bittasini almashtirish
+                    # Qolgan chiziqlarni tozalash (agar uzun bo'lsa)
+                    import re
+                    para.text = re.sub(r'_+', '', para.text)
+                else:
+                    para.text = para.text + f" {signature_text}"
+                signature_added = True
+                
+        # Jadval ichida ham tekshiramiz
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        if "imzo:" in para.text.lower() or "____" in para.text:
+                            if "____" in para.text:
+                                para.text = para.text.replace("____", signature_text, 1)
+                                import re
+                                para.text = re.sub(r'_+', '', para.text)
+                            else:
+                                para.text = para.text + f" {signature_text}"
+                            signature_added = True
+
+        doc.save(output_path)
+        
+        if signature_added:
+            result = FSInputFile(output_path, filename=f"Imzolangan_hujjat.docx")
+            await message.answer_document(
+                document=result,
+                caption="✅ Hujjat muvaffaqiyatli imzolandi!"
+            )
+        else:
+            await message.answer("⚠️ Hujjat ichidan 'Imzo' yoki chiziqchalar (____) topilmadi, shuning uchun o'zgarishsiz qoldi.")
+            
+    except Exception as e:
+        logging.error(f"Imzo qo'yishda xato: {e}")
+        await message.answer("❌ Xatolik yuz berdi.")
+    finally:
+        for path in [input_path, output_path]:
+            if os.path.exists(path):
+                try: os.remove(path)
+                except: pass
+        await msg.delete()
+        await state.clear()
+
 
 
