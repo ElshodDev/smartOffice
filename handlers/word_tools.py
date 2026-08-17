@@ -17,14 +17,13 @@ class WordToolsStates(StatesGroup):
     waiting_for_template_data  = State()
     # Word o'qish uchun holat
     waiting_for_read_file = State()
-    waiting_for_signature = State()
 
 def get_word_menu():
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = [
         [
             InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template"),
-            InlineKeyboardButton(text="📖 O'qish / Imzo qo'yish", callback_data="word_read")
+            InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -301,29 +300,15 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
         # 4096 - header uzunligini chegiramiz
         max_len = 4096 - len(header)
 
-        has_signature = False
-        if "Imzo:" in full_text or "imzo:" in full_text or "________" in full_text:
-            has_signature = True
-
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        markup = None
-        if has_signature:
-            markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✍️ Imzo qo'yish", callback_data=f"sign_word_{doc_file.file_id}")]
-            ])
-
         if len(full_text) <= max_len:
-            await msg.edit_text(header + full_text, parse_mode="HTML", reply_markup=markup)
+            await msg.edit_text(header + full_text, parse_mode="HTML")
         else:
             await msg.edit_text(header + full_text[:max_len] + "\n\n<i>... (davomi quyida)</i>", parse_mode="HTML")
             remaining = full_text[max_len:]
             while remaining:
                 chunk = remaining[:4096]
                 remaining = remaining[4096:]
-                if not remaining:
-                    await message.answer(chunk, reply_markup=markup)
-                else:
-                    await message.answer(chunk)
+                await message.answer(chunk)
 
     except Exception as e:
         logging.error(f"Word faylni o'qishda xato: {e}")
@@ -334,77 +319,4 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
             except: pass
         await state.clear()
 
-# ──────────────────────────────────────────────
-# IMZO QO'YISH
-# ──────────────────────────────────────────────
-@router.callback_query(F.data.startswith("sign_word_"))
-async def ask_for_signature(callback: CallbackQuery, state: FSMContext):
-    file_id = callback.data.split("_")[2]
-    await callback.answer()
-    await callback.message.answer(
-        "✍️ <b>Imzo qo'yish</b>\n\nIltimos, imzongiz tushirilgan rasmni yuboring (orqasi oq yoki shaffof bo'lsa yaxshi chiqadi):",
-        parse_mode="HTML"
-    )
-    await state.update_data(sign_file_id=file_id)
-    await state.set_state(WordToolsStates.waiting_for_signature)
 
-@router.message(WordToolsStates.waiting_for_signature, F.photo | F.document)
-async def process_signature(message: Message, state: FSMContext, bot: Bot):
-    data = await state.get_data()
-    doc_id = data.get("sign_file_id")
-    if not doc_id:
-        return await message.answer("Xatolik: Hujjat topilmadi.")
-
-    # Get signature image
-    os.makedirs("temp", exist_ok=True)
-    if message.photo:
-        photo = message.photo[-1]
-        sign_path = f"temp/sign_{photo.file_id}.jpg"
-        await bot.download(photo.file_id, destination=sign_path)
-    else:
-        doc = message.document
-        valid_exts = ('.jpg', '.jpeg', '.png')
-        if not any(doc.file_name.lower().endswith(ext) for ext in valid_exts):
-            return await message.answer(f"Iltimos, faqat rasm ({', '.join(valid_exts)}) yuboring.")
-        sign_path = f"temp/sign_{doc.file_id}.jpg"
-        await bot.download(doc.file_id, destination=sign_path)
-
-    msg = await message.answer("Hujjatga imzo joylanmoqda... ⏳")
-    doc_path = f"temp/doc_to_sign_{doc_id}.docx"
-    out_path = f"temp/signed_{doc_id}.docx"
-
-    try:
-        # Download the original word document again using file_id
-        await bot.download(doc_id, destination=doc_path)
-        
-        from docx import Document as DocxDoc
-        from docx.shared import Inches
-        d = DocxDoc(doc_path)
-        
-        signature_added = False
-        for para in d.paragraphs:
-            if "Imzo:" in para.text or "imzo:" in para.text or "________" in para.text:
-                run = para.add_run()
-                run.add_picture(sign_path, width=Inches(1.5))
-                signature_added = True
-                break
-                
-        if not signature_added:
-            # If not found in paragraphs, just add at the end
-            p = d.add_paragraph("Imzo: ")
-            r = p.add_run()
-            r.add_picture(sign_path, width=Inches(1.5))
-            
-        d.save(out_path)
-        result = FSInputFile(out_path, filename="imzolangan_hujjat.docx")
-        await message.answer_document(result, caption="✅ Imzo hujjatga tushirildi!")
-    except Exception as e:
-        logging.error(f"Imzo qoyish xatosi: {e}")
-        await message.answer("❌ Xatolik yuz berdi. Imzoni joylashning imkoni bo'lmadi.")
-    finally:
-        for p in [sign_path, doc_path, out_path]:
-            if os.path.exists(p):
-                try: os.remove(p)
-                except: pass
-        await msg.delete()
-        await state.clear()
