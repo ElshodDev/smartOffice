@@ -19,6 +19,11 @@ COPY requirements.txt .
 # Kutubxonalarni o'rnatish
 RUN pip install --no-cache-dir -r requirements.txt
 
+# pdf2docx opencv-python (GUI) ni talab qiladi, u esa libGL kutubxonasisiz ishlamaydi.
+# Serverda grafik interfeys yo'q, shuning uchun uni headless versiyasiga almashtiramiz.
+RUN pip uninstall -y opencv-python \
+    && pip install --no-cache-dir opencv-python-headless==5.0.0.93
+
 # Barcha kod va fayllarni konteynerga nusxalash
 COPY . .
 
