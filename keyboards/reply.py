@@ -1,8 +1,9 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.types.web_app_info import WebAppInfo
+from config import RENDER_URL
 
 def get_main_menu() -> ReplyKeyboardMarkup:
-    web_app_url = "https://smartoffice-moms.onrender.com/?v=4"
+    web_app_url = f"{RENDER_URL.rstrip('/')}/?v=4"
 
     keyboard = [
         [
