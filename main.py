@@ -159,6 +159,8 @@ async def main():
     dp.include_router(scheduler_tools.router)
     dp.include_router(form_filler.router)
     dp.include_router(report_generator.router)
+    from handlers import doc_generator
+    dp.include_router(doc_generator.router)
     from handlers import feedback
     dp.include_router(feedback.router)
     # ── AI OXIRIDA — boshqa hech narsa bo'lmasa javob beradi ──

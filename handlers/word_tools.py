@@ -16,6 +16,8 @@ from services.converter_service import run_heavy, MAX_FILE_SIZE, human_size
 from services.docx_template import (
     fill_template, template_placeholders, iter_all_paragraphs, normalize_key,
 )
+from services.excel_common import is_excel, size_error, read_table, column_keyboard, esc
+from services.mass_fill import MAX_ROWS, make_sample_excel, match_columns, generate_documents
 from services.tempfiles import new_job_dir, remove, safe_filename
 
 router = Router()
@@ -25,6 +27,9 @@ TELEGRAM_LIMIT = 4000
 
 
 class WordToolsStates(StatesGroup):
+    mass_waiting_template = State()
+    mass_waiting_excel = State()
+    mass_choose_name = State()
     waiting_for_template_file = State()
     waiting_for_template_data = State()
     waiting_for_read_file = State()
@@ -32,10 +37,11 @@ class WordToolsStates(StatesGroup):
 
 
 def get_word_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template"),
-        InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read"),
-    ]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Shablonni to'ldirish (bitta hujjat)", callback_data="word_fill_template")],
+        [InlineKeyboardButton(text="📋 Excel ro'yxatdan ommaviy to'ldirish", callback_data="word_mass")],
+        [InlineKeyboardButton(text="📖 Word hujjatni o'qish", callback_data="word_read")],
+    ])
 
 
 @router.message(F.text == "📝 Word Hujjat")
@@ -307,3 +313,132 @@ async def process_word_signature(message: Message, state: FSMContext, bot: Bot):
     finally:
         remove(job_dir)
         await state.clear()
+
+
+# ──────────────────────────────────────────────
+# EXCEL RO'YXATDAN OMMAVIY TO'LDIRISH
+# ──────────────────────────────────────────────
+@router.callback_query(F.data == "word_mass")
+async def mass_start(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    remove((await state.get_data()).get("job_dir"))
+    await state.clear()
+    await callback.message.answer(
+        "📋 <b>Excel ro'yxatdan ommaviy to'ldirish</b>\n\n"
+        "Bitta Word shablon va Excel ro'yxat asosida har bir qator uchun alohida hujjat yarataman "
+        "(sertifikat, taklifnoma, buyruq, ma'lumotnoma...).\n\n"
+        "<b>1-qadam:</b> <code>{{ism}}</code>, <code>{{lavozim}}</code> kabi joylari bor <b>.docx</b> shablonni yuboring.",
+        parse_mode="HTML",
+    )
+    await state.set_state(WordToolsStates.mass_waiting_template)
+
+
+@router.message(WordToolsStates.mass_waiting_template, F.document)
+async def mass_template(message: Message, state: FSMContext, bot: Bot):
+    job_dir, path = await _download_docx(message, bot, "wordmass")
+    if not path:
+        return
+    try:
+        placeholders = await run_heavy(template_placeholders, path)
+    except Exception:
+        logging.exception("Ommaviy: shablonni o'qib bo'lmadi")
+        remove(job_dir)
+        await message.answer("❌ Faylni o'qib bo'lmadi. Fayl shikastlangan bo'lishi mumkin.")
+        return
+    if not placeholders:
+        remove(job_dir)
+        await message.answer(
+            "⚠️ Shablonda <b>{{o'zgaruvchi}}</b> ko'rinishidagi joylar topilmadi.\n"
+            "To'ldiriladigan joylarni qo'sh jingalak qavsga oling, masalan: <code>{{ism}}</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    sample = os.path.join(job_dir, "royxat_namunasi.xlsx")
+    await run_heavy(make_sample_excel, placeholders, sample)
+    await state.update_data(job_dir=job_dir, template_path=path, placeholders=placeholders,
+                            original_name=message.document.file_name)
+    await state.set_state(WordToolsStates.mass_waiting_excel)
+    listing = ", ".join(f"<code>{html.escape(p)}</code>" for p in placeholders[:MAX_PLACEHOLDERS_SHOWN])
+    await message.answer_document(
+        FSInputFile(sample),
+        caption=(
+            f"✅ Shablonda {len(placeholders)} ta o'zgaruvchi topildi: {listing}\n\n"
+            "<b>2-qadam:</b> shu jadvalni to'ldirib yuboring — har bir qator bitta hujjat bo'ladi "
+            f"(ko'pi bilan {MAX_ROWS} ta).\n"
+            "<i>O'z Excel faylingizni ham yuborishingiz mumkin — ustun nomlari o'zgaruvchilar bilan bir xil bo'lsin.</i>"
+        ),
+        parse_mode="HTML",
+    )
+
+
+@router.message(WordToolsStates.mass_waiting_excel, F.document)
+async def mass_excel(message: Message, state: FSMContext, bot: Bot):
+    doc = message.document
+    if not is_excel(doc.file_name):
+        await message.answer("❌ Excel (<b>.xlsx</b> yoki <b>.xls</b>) ro'yxat yuboring.", parse_mode="HTML")
+        return
+    if error := size_error(doc.file_size):
+        await message.answer(error)
+        return
+    data = await state.get_data()
+    path = os.path.join(data["job_dir"], "royxat" + os.path.splitext(doc.file_name)[1].lower())
+    await bot.download(doc, destination=path)
+    try:
+        df = await run_heavy(read_table, path)
+    except Exception:
+        logging.exception("Ommaviy: Excelni o'qib bo'lmadi")
+        await message.answer("❌ Excel faylni o'qib bo'lmadi. Boshqa fayl yuboring:")
+        return
+    df = df.dropna(how="all")
+    if df.empty:
+        await message.answer("❌ Jadvalda ma'lumot qatorlari yo'q. To'ldirib qaytadan yuboring:")
+        return
+    if len(df) > MAX_ROWS:
+        await message.answer(f"❌ Jadvalda {len(df)} ta qator bor — ko'pi bilan {MAX_ROWS} ta. Bo'lib yuboring:")
+        return
+
+    matched, missing = match_columns(data["placeholders"], df.columns)
+    if not matched:
+        await message.answer(
+            "❌ Jadval ustunlari shablondagi o'zgaruvchilarga mos kelmadi.\n"
+            "Ustun nomlari shablondagi nomlar bilan bir xil bo'lishi kerak: "
+            + ", ".join(f"<code>{html.escape(p)}</code>" for p in data["placeholders"]),
+            parse_mode="HTML",
+        )
+        return
+
+    await state.update_data(excel_path=path)
+    await state.set_state(WordToolsStates.mass_choose_name)
+    text = f"✅ Jadval qabul qilindi: <b>{len(df)}</b> ta qator.\n🔗 Mos kelgan ustunlar: " + ", ".join(esc(m) for m in matched)
+    if missing:
+        text += "\n⚠️ Jadvalda yo'q (shablonda o'zgarishsiz qoladi): " + ", ".join(esc(m) for m in missing)
+    text += "\n\n<b>3-qadam:</b> fayl nomlari qaysi ustundan olinsin?"
+    seq_button = InlineKeyboardButton(text="🔢 Tartib raqami (1, 2, 3...)", callback_data="mass_name:seq")
+    await message.answer(text, parse_mode="HTML", reply_markup=column_keyboard(df.columns, "mass_name", extra_first=[seq_button]))
+
+
+@router.callback_query(WordToolsStates.mass_choose_name, F.data.startswith("mass_name:"))
+async def mass_generate(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    await state.clear()
+    choice = callback.data.split(":", 1)[1]
+    name_index = None if choice == "seq" else int(choice)
+    job_dir = data["job_dir"]
+    stem = safe_filename(os.path.splitext(data.get("original_name") or "")[0], "hujjat")
+    status = await callback.message.edit_text("⏳ Hujjatlar yaratilmoqda...")
+    try:
+        zip_path, count = await run_heavy(
+            generate_documents, data["template_path"], data["excel_path"], job_dir, stem, name_index
+        )
+        await callback.message.answer_document(
+            FSInputFile(zip_path),
+            caption=f"✅ Tayyor! {count} ta hujjat yaratildi va ZIP arxivga joylandi.",
+        )
+        await status.delete()
+    except Exception:
+        logging.exception("Ommaviy to'ldirishda xato")
+        await status.edit_text("❌ Hujjatlarni yaratishda xatolik yuz berdi.")
+    finally:
+        remove(job_dir)

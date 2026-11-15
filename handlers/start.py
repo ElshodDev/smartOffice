@@ -21,13 +21,13 @@ WELCOME_TEXT = (
     "Menda quyidagi qulayliklar bor:\n\n"
     
     "📁 <b>Hujjatlar bilan ishlash:</b>\n"
-    "Excel, PDF, Word hujjatlarini tahrirlash, qirqish, birlashtirish va imzo qo'yish. Ma'lumotnoma (Obyektivka) yaratish.\n\n"
+    "Excel, PDF, Word hujjatlari bilan ishlash, Excel ro'yxatdan ommaviy hujjat yaratish. Ariza, tushuntirish xati, buyruq va Obyektivka tayyorlash.\n\n"
 
     "🔤 <b>Tarjimon va Alifbo:</b>\n"
     "Matnlarni tarjima qilish (UZ, EN, RU), Lotin↔Kirill va yangi lotin alifbosiga o'girish (matn, Word, PDF).\n\n"
 
     "📁 <b>Format o'zgartirish:</b>\n"
-    "PDF ni Word ga, rasmni PDF ga o'girish.\n\n"
+    "PDF ni Word ga, rasmni PDF ga o'girish, telefon suratidan toza skan qilish.\n\n"
 
     "🤖 <b>AI Yordamchi:</b>\n"
     "Savollaringizga javob topish uchun sun'iy intellekt.\n\n"

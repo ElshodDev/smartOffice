@@ -16,6 +16,7 @@ from aiogram.types import (
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
+from services.doc_scanner import scan_image
 from services.converter_service import (
     ConverterService, ConversionError, run_heavy, is_busy, human_size,
     MAX_FILE_SIZE, MAX_IMAGES_PER_PDF, MAX_PDF2WORD_PAGES, MAX_PDF2IMG_PAGES,
@@ -46,6 +47,7 @@ def get_converter_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📄 PDF ➡️ Word", callback_data="format_pdf2word")],
         [InlineKeyboardButton(text="🖼 Rasm(lar) ➡️ PDF", callback_data="format_img2pdf")],
+        [InlineKeyboardButton(text="📸 Hujjatni skanerlash (suratdan toza PDF)", callback_data="format_scan")],
         [InlineKeyboardButton(text="📄 PDF ➡️ Rasm (JPG)", callback_data="format_pdf2img")],
         [InlineKeyboardButton(text="🗜 PDF hajmini kichraytirish", callback_data="format_compress")],
         [InlineKeyboardButton(text="📱 Rasm formati ➡️ JPG (HEIC, WEBP, PNG)", callback_data="format_img2jpg")],
@@ -171,7 +173,7 @@ async def ask_for_image(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     _remove(_user_img_dir(callback.from_user.id))  # avvalgi tugallanmagan sessiya qoldiqlari
     await state.set_state(FormatConverterStates.collecting_images)
-    await state.update_data(images=[], status_id=None)
+    await state.update_data(images=[], status_id=None, purpose="pdf")
     await callback.message.edit_text(
         "🖼 <b>Rasm(lar)dan PDF yaratish</b>\n\n"
         f"Rasmlarni yuboring — bittadan yoki albom qilib (ko'pi bilan {MAX_IMAGES_PER_PDF} ta).\n"
@@ -179,6 +181,58 @@ async def ask_for_image(callback: CallbackQuery, state: FSMContext):
         "<i>Sifat yo'qolmasligi uchun rasmlarni «Fayl» sifatida yuborish tavsiya etiladi.</i>",
         parse_mode="HTML",
     )
+
+
+# ── 📸 Hujjat skaneri (rasm yig'ish mexanizmi Rasm → PDF bilan umumiy) ──────
+
+SCAN_MODES = {"bw": "⚫ Oq-qora", "color": "🎨 Rangli"}
+
+
+@router.callback_query(F.data == "format_scan")
+async def ask_scan_mode(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.edit_text(
+        "📸 <b>Hujjatni skanerlash</b>\n\n"
+        "Telefonda olingan hujjat suratini skaner qilingandek toza PDF qilib beraman: "
+        "qog'oz chetlarini topib qirqaman, qiyshayganini to'g'rilayman, soyani olib tashlayman.\n\n"
+        "Qaysi rejim kerak?",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⚫ Oq-qora — matnli hujjatlar uchun", callback_data="format_scan_mode:bw")],
+            [InlineKeyboardButton(text="🎨 Rangli — muhr, rasm, rangli blanka uchun", callback_data="format_scan_mode:color")],
+        ]),
+    )
+
+
+@router.callback_query(F.data.startswith("format_scan_mode:"))
+async def ask_scan_images(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    mode = callback.data.split(":", 1)[1]
+    if mode not in SCAN_MODES:
+        return
+    _remove(_user_img_dir(callback.from_user.id))
+    await state.set_state(FormatConverterStates.collecting_images)
+    await state.update_data(images=[], status_id=None, purpose="scan", mode=mode)
+    await callback.message.edit_text(
+        f"📸 <b>Skanerlash — {SCAN_MODES[mode]}</b>\n\n"
+        f"Hujjat sahifalarining suratlarini yuboring (ko'pi bilan {MAX_IMAGES_PER_PDF} ta, albom qilib ham bo'ladi).\n\n"
+        "<b>Yaxshi natija uchun:</b>\n"
+        "• qog'ozni qoramtir, bir xil rangli yuzaga qo'ying;\n"
+        "• qog'ozning 4 burchagi suratga to'liq tushsin;\n"
+        "• yorug' joyda, chaqnoqsiz (vspishkasiz) suratga oling.",
+        parse_mode="HTML",
+    )
+
+
+def _scan_all(images: list[str], folder: str, mode: str) -> tuple[list[str], int]:
+    """Har bir suratni skanerlaydi. (natija fayllari, qog'ozi topilmagan sahifalar soni)."""
+    scanned, not_found = [], 0
+    for i, path in enumerate(images, start=1):
+        out = os.path.join(folder, f"scan_{i:03d}" + (".png" if mode == "bw" else ".jpg"))
+        if not scan_image(path, out, mode):
+            not_found += 1
+        scanned.append(out)
+    return scanned, not_found
 
 
 @router.message(FormatConverterStates.collecting_images, F.photo | F.document)
@@ -244,7 +298,8 @@ async def build_pdf(event: Message | CallbackQuery, state: FSMContext):
         if await state.get_state() != FormatConverterStates.collecting_images.state:
             await message.answer("Bu sessiya tugagan. Qaytadan «🖼 Rasm(lar) ➡️ PDF» ni tanlang.")
             return
-        images = (await state.get_data()).get("images", [])
+        data = await state.get_data()
+        images, purpose, mode = data.get("images", []), data.get("purpose", "pdf"), data.get("mode", "bw")
         await state.clear()
 
     folder = _user_img_dir(user_id)
@@ -254,12 +309,21 @@ async def build_pdf(event: Message | CallbackQuery, state: FSMContext):
         return
 
     pdf_path = _tmp(f"img2pdf_{user_id}.pdf")
-    status = await message.answer(f"⏳ {len(images)} ta rasmdan PDF yaratilmoqda...")
+    scanning = purpose == "scan"
+    status = await message.answer(
+        f"⏳ {len(images)} ta sahifa skanerlanmoqda..." if scanning else f"⏳ {len(images)} ta rasmdan PDF yaratilmoqda..."
+    )
     try:
+        note = ""
+        if scanning:
+            images, not_found = await _run(message, status, _scan_all, images, folder, mode)
+            if not_found:
+                note = (f"\n\n⚠️ {not_found} ta suratda qog'oz chegarasi aniqlanmadi — ular butunligicha tozalandi. "
+                        "Aniqroq natija uchun qog'ozni qoramtir yuzada, 4 burchagi ko'rinadigan qilib suratga oling.")
         await _run(message, status, ConverterService.images_to_pdf, images, pdf_path)
         await message.answer_document(
-            FSInputFile(pdf_path, filename="rasmlar.pdf"),
-            caption=f"✅ Tayyor! {len(images)} sahifali PDF ({human_size(os.path.getsize(pdf_path))}).",
+            FSInputFile(pdf_path, filename="skan.pdf" if scanning else "rasmlar.pdf"),
+            caption=f"✅ Tayyor! {len(images)} sahifali PDF ({human_size(os.path.getsize(pdf_path))}).{note}",
         )
         await status.delete()
     except ConversionError as e:

@@ -7,7 +7,8 @@ router = Router()
 def get_documents_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Excel", callback_data="hub_excel"), InlineKeyboardButton(text="📄 PDF", callback_data="hub_pdf")],
-        [InlineKeyboardButton(text="📝 Word", callback_data="hub_word"), InlineKeyboardButton(text="📋 Obyektivka", callback_data="hub_obyektivka")]
+        [InlineKeyboardButton(text="📝 Word", callback_data="hub_word"), InlineKeyboardButton(text="📋 Obyektivka", callback_data="hub_obyektivka")],
+        [InlineKeyboardButton(text="✍️ Rasmiy hujjat yaratish", callback_data="docgen")],
     ])
 
 @router.message(F.text == "📁 Hujjatlar bilan ishlash")

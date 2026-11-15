@@ -61,9 +61,11 @@ Bot imkoniyatlari (bosh menyu bo'limlari):
    - Excel: qatorlarni qirqish, teng bo'laklarga bo'lish, ustun qiymatlari bo'yicha alohida fayllarga bo'lish, dublikatlarni tozalash, bir nechta faylni birlashtirish, grafik chizish (.xlsx va .xls).
    - PDF: birlashtirish, sahifalarni ajratish, watermark (kirill harflari bilan ham) qo'yish.
    - Word: {{o'zgaruvchi}} li shablonni to'ldirish, Word faylni o'qish va imzo joyiga ism yozish.
+   - Word: Excel ro'yxatdan ommaviy to'ldirish (har bir qator uchun alohida hujjat — sertifikat, taklifnoma va h.k.).
    - Obyektivka (ma'lumotnoma): savol-javob orqali PDF yoki Excel formatida tayyorlash.
+   - ✍️ Rasmiy hujjat yaratish: ariza (ishga kirish, ta'til, ishdan bo'shash, boshqa), tushuntirish xati, dalolatnoma, tavsifnoma, buyruq — savollarga javob berib Word hujjat olish (lotin yoki kirill).
 2. 🔤 Tarjimon va Alifbo: UZ↔EN, UZ↔RU tarjima; Lotin↔Kirill va yangi lotin alifbosiga (ó, ǵ, ş, ç, ñ) o'girish — matn, Word, PDF va .txt fayllar bilan.
-3. 📁 Format o'zgartirish: PDF→Word, rasm(lar)→PDF, PDF→rasm (JPG), PDF hajmini kichraytirish, HEIC/WEBP/PNG→JPG.
+3. 📁 Format o'zgartirish: PDF→Word, rasm(lar)→PDF, 📸 hujjat skaneri (telefon suratidan toza skan PDF), PDF→rasm (JPG), PDF hajmini kichraytirish, HEIC/WEBP/PNG→JPG.
 Botda PDF'ga parol qo'yish va Word'dan PDF'ga o'girish funksiyalari YO'Q — bunday so'rovga botda yo'qligini ayt.
 
 QAT'IY QOIDALAR (GUARDRAILS):

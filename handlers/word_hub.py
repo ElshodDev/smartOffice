@@ -13,8 +13,9 @@ router = Router()
 
 def get_word_hub_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Word shablonni to'ldirish", callback_data="word_fill_template")],
-        [InlineKeyboardButton(text="📖 Word hujjatni o'qish (va Imzo qo'yish)", callback_data="word_read")]
+        [InlineKeyboardButton(text="📝 Shablonni to'ldirish (bitta hujjat)", callback_data="word_fill_template")],
+        [InlineKeyboardButton(text="📋 Excel ro'yxatdan ommaviy to'ldirish", callback_data="word_mass")],
+        [InlineKeyboardButton(text="📖 Word hujjatni o'qish (va imzo joyiga ism yozish)", callback_data="word_read")]
     ])
 
 
