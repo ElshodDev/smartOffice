@@ -891,7 +891,10 @@ async function saveAndSend() {
         // Send to server
         const resp = await fetch('/api/form/save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-Init-Data': tg.initData
+            },
             body: JSON.stringify({
                 chat_id: chatId,
                 image: imageDataUrl,

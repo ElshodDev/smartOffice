@@ -1,67 +1,14 @@
 import aiosqlite
 import logging
 from datetime import datetime
+from services.migrations import apply_migrations
 
 DB_PATH = "database.db"
 
 async def create_table() -> None:
-    """Baza va users jadvali yaratiladi (agar mavjud bo'lmasa)."""
+    """Apply all pending, versioned database migrations."""
     async with aiosqlite.connect(DB_PATH) as db:
-        # Foydalanuvchilar jadvali
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id  BIGINT  UNIQUE NOT NULL,
-                full_name    TEXT,
-                referrer_id  BIGINT,
-                usage_count  INTEGER DEFAULT 0,
-                joined_date  DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Eski bazaga ustunlarni qo'shish (agar bo'lmasa xato bermay o'tkazib yuboradi)
-        try:
-            await db.execute("ALTER TABLE users ADD COLUMN referrer_id BIGINT")
-        except Exception:
-            pass
-        try:
-            await db.execute("ALTER TABLE users ADD COLUMN usage_count INTEGER DEFAULT 0")
-        except Exception:
-            pass
-
-        
-        # Eslatmalar jadvali
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS reminders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                text TEXT,
-                run_date TIMESTAMP,
-                is_done INTEGER DEFAULT 0
-            )
-        ''')
-        # Obunalar jadvali (premium)
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                user_id     BIGINT PRIMARY KEY,
-                plan        TEXT DEFAULT 'free',
-                expires_at  DATETIME
-            )
-        ''')
-
-        # To'lovlar jadvali
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS payments (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id         BIGINT NOT NULL,
-                amount          INTEGER NOT NULL,
-                plan            TEXT,
-                provider        TEXT,
-                transaction_id  TEXT UNIQUE,
-                status          TEXT DEFAULT 'pending',
-                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        await apply_migrations(db)
         await db.commit()
     logging.info("Database: barcha jadvallar tayyor.")
 

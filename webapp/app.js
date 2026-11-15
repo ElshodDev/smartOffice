@@ -15,7 +15,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Backend dan ma'lumot olish orqali admin ekanligini tekshiramiz
         try {
-            const response = await fetch(`/api/stats?user_id=${user.id}`);
+            const response = await fetch('/api/stats', {
+                headers: { 'X-Telegram-Init-Data': tg.initData }
+            });
             
             // Agar 200 OK kelsa, demak u Admin!
             if (response.ok) {

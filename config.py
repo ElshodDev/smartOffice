@@ -1,8 +1,14 @@
-import os
-from dotenv import load_dotenv
+"""Backward-compatible configuration exports.
 
-load_dotenv()
+New code should depend on ``src.shared.settings.get_settings`` instead of
+reading environment variables directly.
+"""
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+from src.shared.settings import get_settings
+
+settings = get_settings()
+
+BOT_TOKEN = settings.bot_token
+ADMIN_ID = str(settings.admin_id) if settings.admin_id is not None else None
+CHANNEL_ID = settings.channel_id
+RENDER_URL = settings.render_url

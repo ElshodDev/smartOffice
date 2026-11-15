@@ -215,12 +215,13 @@
         const tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
 
         try {
-            const adminRes = await fetch('/api/stats?user_id=' + (tgUser ? tgUser.id : ''));
+            const authHeaders = { 'X-Telegram-Init-Data': tg.initData };
+            const adminRes = await fetch('/api/stats', { headers: authHeaders });
             if (adminRes.ok) { renderAdminView(await adminRes.json()); return; }
         } catch(e) {}
 
         try {
-            const profileRes = await fetch('/api/user-profile?user_id=' + (tgUser ? tgUser.id : ''));
+            const profileRes = await fetch('/api/user-profile', { headers: authHeaders });
             if (profileRes.ok) { renderUserView(await profileRes.json(), tgUser); return; }
         } catch(e) {}
 

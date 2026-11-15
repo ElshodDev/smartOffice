@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sys
 import os
 from aiohttp import web
 from aiogram import Bot, Dispatcher
@@ -38,50 +37,59 @@ from handlers.scheduler_tools import start_scheduler, stop_scheduler, setup_dail
 from middlewares.state_clear import StateClearMiddleware
 from middlewares.throttling import ThrottlingMiddleware
 from middlewares.subscription import SubscriptionMiddleware
-from services.database import create_table, get_users_count, get_recent_users, get_user_profile
-from config import ADMIN_ID
-from services.image_editor import serve_form_image, serve_form_editor, receive_edited_form, set_bot
+from services.database import create_table
+from services.image_editor import ImageEditorService
+from src.shared.security.http import require_admin, require_webapp_user
+from src.shared.logging import configure_logging
+from src.shared.settings import get_settings
+from src.modules.identity.application.queries import IdentityQueryService
+from src.modules.identity.infrastructure.sqlite import SqliteIdentityReadAdapter
+
+settings = get_settings()
+identity_queries = IdentityQueryService(SqliteIdentityReadAdapter())
 
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
 async def api_stats(request: web.Request):
     try:
-        user_id_str = request.query.get("user_id", "")
-        if user_id_str != str(ADMIN_ID):
-            return web.json_response({"error": "Unauthorized"}, status=403)
-        count = await get_users_count()
-        recent = await get_recent_users(200)
-        return web.json_response({"count": count, "users": recent})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+        require_admin(request, settings)
+        statistics = await identity_queries.get_admin_statistics()
+        return web.json_response(statistics)
+    except web.HTTPException:
+        raise
+    except Exception:
+        logging.exception("Failed to load admin statistics")
+        return web.json_response({"error": "Internal server error"}, status=500)
 
 async def api_user_profile(request: web.Request):
     """Har bir foydalanuvchining o'z profilini ko'rishi uchun endpoint."""
     try:
-        user_id_str = request.query.get("user_id", "")
-        if not user_id_str or not user_id_str.isdigit():
-            return web.json_response({"error": "Invalid user_id"}, status=400)
-        profile = await get_user_profile(int(user_id_str))
+        authenticated_user_id = require_webapp_user(request, settings)
+        profile = await identity_queries.get_own_profile(authenticated_user_id)
         if not profile:
             return web.json_response({"error": "User not found"}, status=404)
         return web.json_response(profile)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+    except web.HTTPException:
+        raise
+    except Exception:
+        logging.exception("Failed to load user profile")
+        return web.json_response({"error": "Internal server error"}, status=500)
 
 
 async def index(request):
     return web.FileResponse('./webapp/index.html')
 
 async def start_dummy_server(bot):
-    app = web.Application()
+    image_editor = ImageEditorService(bot, settings)
+    app = web.Application(client_max_size=10 * 1024 * 1024)
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/api/stats", api_stats)
     app.router.add_get("/api/user-profile", api_user_profile)
     app.router.add_get("/", index)
-    app.router.add_get("/form-editor", serve_form_editor)
-    app.router.add_get("/forms/{filename}", serve_form_image)
-    app.router.add_post("/api/form/save", receive_edited_form)
+    app.router.add_get("/form-editor", image_editor.serve_form_editor)
+    app.router.add_get("/forms/{filename}", image_editor.serve_form_image)
+    app.router.add_post("/api/form/save", image_editor.receive_edited_form)
     app.router.add_static('/static', path='./webapp', name='webapp')
     
     port = int(os.environ.get("PORT", 10000))
@@ -144,6 +152,9 @@ async def main():
     dp.include_router(ocr_tools.router)
     dp.include_router(search_data.router)
     dp.include_router(pdf_tools.router)
+    dp.include_router(utility_tools.router)
+    dp.include_router(reminders.router)
+    dp.include_router(promotion.router)
     dp.include_router(settings.router)
     dp.include_router(scheduler_tools.router)
     dp.include_router(form_filler.router)
@@ -160,9 +171,6 @@ async def main():
     logging.info("Bot ishga tushmoqda...")
     await bot.delete_webhook(drop_pending_updates=True)
 
-    # ── Web serverga bot reference qo'yish ──
-    set_bot(bot)
-
     try:
         await start_dummy_server(bot)
         await dp.start_polling(bot)
@@ -172,7 +180,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    configure_logging()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
