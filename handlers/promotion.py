@@ -1,46 +1,66 @@
-from aiogram import Router, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+"""🔗 Do'stlarga ulashish va 💻 dasturchi xizmatlari."""
 import os
+from urllib.parse import quote
+
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 router = Router()
-BOT_USERNAME = os.getenv("BOT_USERNAME", "smartOffice_bot")
+
+BOT_USERNAME = os.getenv("BOT_USERNAME", "smartOffice_bot").lstrip("@")
+DEVELOPER_USERNAME = "Elshod_Developer"
+
+BACK = InlineKeyboardButton(text="⬅️ Orqaga", callback_data="profile_menu")
+
+SERVICES_TEXT = (
+    "💻 <b>Dasturchi va xizmatlar</b>\n\n"
+    "Bot muallifi quyidagi xizmatlarni taklif qiladi:\n\n"
+    "1️⃣ <b>Telegram bot yaratish</b> — do'kon, admin panel, AI ulangan botlar.\n"
+    "2️⃣ <b>Veb-sayt yaratish</b> — landing page, korporativ sayt.\n"
+    "3️⃣ <b>Biznesni avtomatlashtirish</b> — CRM, hisobot generatorlari kabi tizimlar.\n\n"
+    "<i>Narxi kelishiladi.</i> Buyurtma yoki savol uchun pastdagi tugmani bosing 👇"
+)
+
+
+def services_keyboard(with_back: bool) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text="📞 Dasturchiga yozish", url=f"https://t.me/{DEVELOPER_USERNAME}")]]
+    if with_back:
+        rows.append([BACK])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
 
 @router.message(F.text == "🛒 Xizmatlarim")
 async def show_services(message: Message):
-    await message.answer(
-        "💻 <b>Dasturlash va IT Xizmatlari</b>\n\n"
-        "Men quyidagi xizmatlarni taklif qilaman:\n\n"
-        "1️⃣ <b>Telegram Bot Yaratish</b>\n"
-        "Biznesingiz uchun aynan siz xohlagandek botlar (masalan: do'kon, admin panel, AI ulangan botlar). <i>(Narxi: kelishilgan)</i>\n\n"
-        "2️⃣ <b>Web Sayt Yaratish</b>\n"
-        "Zamonaviy va chiroyli veb-saytlar (Landing page, Korporativ sayt). <i>(Narxi: kelishilgan)</i>\n\n"
-        "3️⃣ <b>Biznesni Avtomatlashtirish</b>\n"
-        "Kompaniyangiz jarayonlarini osonlashtiruvchi CRM, hisobot generatorlari kabi tizimlar.\n\n"
-        "Murojaat uchun pastdagi tugmani bosing 👇",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="📞 Dasturchi bilan aloqa", url="https://t.me/Elshod_Developer")
-        ]])
-    )
+    await message.answer(SERVICES_TEXT, parse_mode="HTML", reply_markup=services_keyboard(False))
 
-@router.message(F.text == "🔗 Ulashish")
-async def share_bot(message: Message):
-    # Foydalanuvchi uchun maxsus referral havola (agar ulashsa va boshqalar kirsa u bonus oladi)
-    user_id = message.from_user.id
-    share_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-    
-    text_to_share = "Ajoyib bot! PDF, Excel hisobotlar va sun'iy intellekt xizmatlaridan foydalanish uchun shu yerdan kiring 👇"
-    
-    # Telegram share link (URL encode required for text)
-    encoded_text = text_to_share.replace(" ", "%20").replace("\n", "%0A")
-    telegram_share_url = f"https://t.me/share/url?url={share_link}&text={encoded_text}"
-    
-    await message.answer(
+
+@router.callback_query(F.data == "dev_contact")
+async def show_services_cb(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.edit_text(SERVICES_TEXT, parse_mode="HTML", reply_markup=services_keyboard(True))
+
+
+def share_content(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
+    link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+    invite = "Ofis ishlari uchun qulay bot: Excel, PDF, Word, skaner, ariza va hujjatlar tayyorlash 👇"
+    share_url = f"https://t.me/share/url?url={quote(link, safe='')}&text={quote(invite, safe='')}"
+    text = (
         "🔗 <b>Do'stlarga ulashing!</b>\n\n"
-        "Do'stlaringizni botga taklif qiling va ular bilan birga foydali xizmatlardan foydalaning! 🤝\n\n"
-        f"Sizning maxsus havolangiz:\n<code>{share_link}</code>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="🚀 Do'stlarga ulashish", url=telegram_share_url)
-        ]])
+        "Botni hamkasblaringiz va do'stlaringizga tavsiya qiling 🤝\n\n"
+        f"Sizning havolangiz:\n<code>{link}</code>"
     )
+    return text, InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Do'stlarga yuborish", url=share_url)]])
+
+
+@router.message(F.text.in_({"🔗 Ulashish", "🔗 Do'stlarga ulashish"}))
+async def share_bot(message: Message):
+    text, keyboard = share_content(message.from_user.id)
+    await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "share_bot")
+async def share_bot_cb(callback: CallbackQuery):
+    await callback.answer()
+    text, keyboard = share_content(callback.from_user.id)
+    keyboard.inline_keyboard.append([BACK])
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)

@@ -9,6 +9,7 @@ def get_documents_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📊 Excel", callback_data="hub_excel"), InlineKeyboardButton(text="📄 PDF", callback_data="hub_pdf")],
         [InlineKeyboardButton(text="📝 Word", callback_data="hub_word"), InlineKeyboardButton(text="📋 Obyektivka", callback_data="hub_obyektivka")],
         [InlineKeyboardButton(text="✍️ Rasmiy hujjat yaratish", callback_data="docgen")],
+        [InlineKeyboardButton(text="🖊 Blankani to'ldirish va imzolash", callback_data="form_fill")],
     ])
 
 @router.message(F.text == "📁 Hujjatlar bilan ishlash")

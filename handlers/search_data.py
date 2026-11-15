@@ -1,137 +1,159 @@
-import os
+"""🔍 Excel ichidan ma'lumot qidirish: fayl bir marta yuklanadi, so'ng istalgancha so'z qidiriladi."""
+import html
 import logging
-import pandas as pd
+import os
+import re
+
 from aiogram import Router, F, Bot
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
+from services.converter_service import run_heavy
+from services.excel_common import is_excel, size_error, read_table
+from services.mass_fill import format_cell
+from services.tempfiles import new_job_dir, remove, safe_filename
+
 router = Router()
+
+SHOW_AS_TEXT = 15        # shundan ko'p natija bo'lsa — Excel fayl
+TELEGRAM_LIMIT = 3900
+
 
 class SearchDataStates(StatesGroup):
     waiting_for_file = State()
     waiting_for_query = State()
 
+
+FINISH_KB = InlineKeyboardMarkup(inline_keyboard=[[
+    InlineKeyboardButton(text="✅ Qidiruvni tugatish", callback_data="search_finish")
+]])
+
+
 @router.message(F.text == "🔍 Ma'lumot qidirish")
 async def start_search(message: Message, state: FSMContext):
+    remove((await state.get_data()).get("job_dir"))
     await state.clear()
-    await message.answer(
-        "Qidirish amalga oshiriladigan Excel (.xlsx yoki .xls) faylni yuboring."
+    await message.answer("🔍 Qidirish uchun Excel (.xlsx yoki .xls) faylni yuboring.")
+    await state.set_state(SearchDataStates.waiting_for_file)
+
+
+@router.callback_query(F.data == "tools_search")
+async def start_search_cb(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    remove((await state.get_data()).get("job_dir"))
+    await state.clear()
+    await callback.message.edit_text(
+        "🔍 <b>Ma'lumot qidirish</b>\n\nQidirish uchun Excel (.xlsx yoki .xls) faylni yuboring. "
+        "Keyin so'z yoki raqam yozasiz — mos qatorlarni topib beraman.",
+        parse_mode="HTML",
     )
     await state.set_state(SearchDataStates.waiting_for_file)
 
+
 @router.message(SearchDataStates.waiting_for_file, F.document)
 async def process_search_file(message: Message, state: FSMContext, bot: Bot):
-    document = message.document
-    if not (document.file_name.endswith('.xlsx') or document.file_name.endswith('.xls')):
+    doc = message.document
+    if not is_excel(doc.file_name):
         await message.answer("Iltimos, faqat .xlsx yoki .xls formatidagi fayl yuboring.")
         return
-
-    os.makedirs('temp', exist_ok=True)
-    file_path = f"temp/search_{document.file_id}_{document.file_name}"
-    await bot.download(document, destination=file_path)
-
-    await state.update_data(file_path=file_path, original_name=document.file_name)
-    await message.answer(
-        "Fayl qabul qilindi! Endi qidirmoqchi bo'lgan so'z yoki raqamni kiriting:"
-    )
+    if error := size_error(doc.file_size):
+        await message.answer(error)
+        return
+    remove((await state.get_data()).get("job_dir"))
+    job_dir = new_job_dir("xlsearch")
+    path = os.path.join(job_dir, "input" + os.path.splitext(doc.file_name)[1].lower())
+    await bot.download(doc, destination=path)
+    try:
+        df = await run_heavy(read_table, path)
+    except Exception:
+        logging.exception("Qidiruv: faylni o'qib bo'lmadi")
+        remove(job_dir)
+        await message.answer("❌ Faylni o'qib bo'lmadi. Fayl buzilgan yoki format noto'g'ri bo'lishi mumkin.")
+        return
+    if df.empty:
+        remove(job_dir)
+        await message.answer("❌ Fayl bo'sh — qidiradigan ma'lumot yo'q.")
+        return
+    await state.update_data(job_dir=job_dir, file_path=path, original_name=doc.file_name)
     await state.set_state(SearchDataStates.waiting_for_query)
+    await message.answer(
+        f"✅ Fayl qabul qilindi: <b>{len(df)}</b> qator, <b>{len(df.columns)}</b> ustun.\n\n"
+        "Qidirmoqchi bo'lgan so'z yoki raqamni yozing (masalan: <code>Aliyev</code> yoki <code>+998901234567</code>).\n"
+        "<i>Bir nechta so'zni ketma-ket qidirishingiz mumkin.</i>",
+        parse_mode="HTML",
+        reply_markup=FINISH_KB,
+    )
+
+
+def _digits(text: str) -> str:
+    return re.sub(r"\D", "", text)
+
+
+def _search(path: str, query: str, out_path: str):
+    df = read_table(path)
+    # Katakchalarni odam ko'radigan ko'rinishga keltiramiz: 95.0 → "95", sana → "15.11.2026", bo'sh → ""
+    as_text = df.apply(lambda col: col.map(format_cell)).astype(str)
+    # regex=False: "+998..." yoki "(bo'lim)" kabi so'rovlar oddiy matn sifatida qidiriladi
+    mask = as_text.apply(lambda col: col.str.contains(query, case=False, regex=False, na=False)).any(axis=1)
+    # Telefon/raqam qidiruvi: Excel "+998 90 123-45-67" ni ko'pincha 998901234567 son sifatida saqlaydi
+    digits = _digits(query)
+    if len(digits) >= 5 and len(digits) >= len(re.sub(r"[\s+()\-]", "", query)):
+        mask |= as_text.apply(lambda col: col.map(_digits).str.contains(digits, regex=False)).any(axis=1)
+    found = df[mask]
+    if len(found) > SHOW_AS_TEXT:
+        found.to_excel(out_path, index=False)
+        return len(found), None
+    rows = []
+    for _, row in as_text[mask].iterrows():
+        rows.append([(str(col), val) for col, val in row.items() if val.strip()])
+    return len(found), rows
+
 
 @router.message(SearchDataStates.waiting_for_query, F.text)
 async def process_search_query(message: Message, state: FSMContext):
     query = message.text.strip()
+    if query.startswith("/"):
+        return
+    if not query:
+        return
     data = await state.get_data()
-    file_path = data['file_path']
-    original_name = data['original_name']
-    base_name, ext = os.path.splitext(original_name)
-
-    msg = await message.answer(f"🔍 <b>{query}</b> so'zi qidirilmoqda...", parse_mode="HTML")
-
-    result_path = None
+    stem = safe_filename(os.path.splitext(data.get("original_name") or "")[0], "jadval")
+    out_path = os.path.join(data["job_dir"], f"{stem}_qidiruv.xlsx")
+    q = html.escape(query)
     try:
-        df = pd.read_excel(file_path)
+        count, rows = await run_heavy(_search, data["file_path"], query, out_path)
+    except Exception:
+        logging.exception("Qidirishda xatolik")
+        await message.answer("❌ Qidirishda xatolik yuz berdi.", reply_markup=FINISH_KB)
+        return
 
-        if df.empty:
-            await msg.edit_text("Fayl bo'sh, hech qanday ma'lumot topilmadi.")
-            return
-
-        # Barcha ustunlar bo'ylab katta-kichik harfga e'tibor bermay qidirish
-        mask = df.astype(str).apply(
-            lambda col: col.str.contains(query, case=False, na=False)
-        ).any(axis=1)
-
-        result_df = df[mask]
-        found_count = len(result_df)
-
-        if found_count == 0:
-            await msg.edit_text(
-                f"❌ <b>{query}</b> so'zi bo'yicha hech narsa topilmadi.\n\n"
-                "Boshqa so'z bilan qaytadan urinib ko'ring:",
-                parse_mode="HTML"
-            )
-            # Holatni o'zgartirmaymiz — foydalanuvchi yangi query kiritishi mumkin
-            return
-
-        # Natijalarni ko'rsatish usulini aniqlash
-        if found_count <= 20:
-            # 20 ta va undan kam bo'lsa — matn ko'rinishida chiqar
-            lines = [f"✅ <b>{found_count}</b> ta natija topildi:\n"]
-            for idx, row in result_df.iterrows():
-                row_text = " | ".join(
-                    [f"<b>{col}:</b> {val}" for col, val in row.items() if str(val) != 'nan']
-                )
-                lines.append(f"▫️ {row_text}")
-
-            # Telegram xabar limiti (4096 belgi) ga e'tibor berish
-            full_text = "\n".join(lines)
-            if len(full_text) <= 4096:
-                await msg.edit_text(full_text, parse_mode="HTML")
-            else:
-                # Matn juda uzun bo'lsa — Excel fayl sifatida yuborish
-                await msg.edit_text(
-                    f"✅ <b>{found_count}</b> ta natija topildi. Matn hajmi katta bo'lgani uchun Excel fayl sifatida yuborilmoqda...",
-                    parse_mode="HTML"
-                )
-                result_path = f"temp/qidiruv_{query[:20]}_{base_name}{ext}"
-                result_df.to_excel(result_path, index=False)
-                result_file = FSInputFile(result_path, filename=f"qidiruv_natijalari{ext}")
-                await message.answer_document(
-                    document=result_file,
-                    caption=f"🔍 <b>{query}</b> so'zi bo'yicha {found_count} ta natija.",
-                    parse_mode="HTML"
-                )
-        else:
-            # 20 dan ko'p bo'lsa — Excel fayl sifatida yuborish
-            result_path = f"temp/qidiruv_{query[:20]}_{base_name}{ext}"
-            result_df.to_excel(result_path, index=False)
-            result_file = FSInputFile(result_path, filename=f"qidiruv_natijalari{ext}")
-            await msg.edit_text(
-                f"✅ <b>{found_count}</b> ta natija topildi. Excel fayl sifatida yuborilmoqda...",
-                parse_mode="HTML"
-            )
-            await message.answer_document(
-                document=result_file,
-                caption=f"🔍 <b>{query}</b> so'zi bo'yicha {found_count} ta natija.",
-                parse_mode="HTML"
-            )
-
-        await message.answer(
-            "Yana boshqa so'z qidirmoqchimisiz? Yangi so'zni yuboring yoki bosh menyudan boshqa bo'limni tanlang."
+    if count == 0:
+        await message.answer(f"❌ «{q}» bo'yicha hech narsa topilmadi. Boshqa so'z yozing:",
+                             parse_mode="HTML", reply_markup=FINISH_KB)
+        return
+    if rows is None:
+        await message.answer_document(
+            FSInputFile(out_path),
+            caption=f"🔍 «{q}» bo'yicha <b>{count}</b> ta natija — Excel faylda.\nYana so'z yozishingiz mumkin.",
+            parse_mode="HTML",
+            reply_markup=FINISH_KB,
         )
+        os.remove(out_path)
+        return
 
-    except Exception as e:
-        logging.error(f"Qidirishda xatolik: {e}")
-        await msg.edit_text("Xatolik yuz berdi. Fayl formati noto'g'ri bo'lishi mumkin.")
-        await state.clear()
-    finally:
-        # Fayllarni tozalash
-        for path in [file_path, result_path]:
-            if path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except Exception as ex:
-                    logging.error(f"Faylni o'chirishda xatolik: {path} - {ex}")
+    lines = [f"✅ «{q}» bo'yicha <b>{count}</b> ta natija:\n"]
+    for row in rows:
+        lines.append("▫️ " + " | ".join(f"<b>{html.escape(c)}:</b> {html.escape(v)}" for c, v in row))
+    text = "\n".join(lines)
+    if len(text) > TELEGRAM_LIMIT:
+        text = text[:TELEGRAM_LIMIT].rsplit("\n", 1)[0] + "\n…"
+    await message.answer(text + "\n\n<i>Yana so'z yozishingiz mumkin.</i>", parse_mode="HTML", reply_markup=FINISH_KB)
 
-        # Faqat xato bo'lmagan holda state'ni query bosqichida ushlab turamiz
-        # Foydalanuvchi yangi query yubora olishi uchun
-        await state.clear()
+
+@router.callback_query(F.data == "search_finish")
+async def finish_search(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Qidiruv tugatildi")
+    remove((await state.get_data()).get("job_dir"))
+    await state.clear()
+    await callback.message.answer("✅ Qidiruv tugatildi. Bosh menyudan boshqa bo'limni tanlashingiz mumkin.")

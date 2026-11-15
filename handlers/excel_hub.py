@@ -19,6 +19,7 @@ def get_excel_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📈 Takrorlangan (Dublikat) ma'lumotlarni tozalash", callback_data="eu_dedup")],
         [InlineKeyboardButton(text="🔗 Bir nechta Excel fayllarni birlashtirish", callback_data="eu_merge")],
         [InlineKeyboardButton(text="📉 Ma'lumotlardan grafik (Chart) chizish", callback_data="eu_chart")],
+        [InlineKeyboardButton(text="🔍 Jadvaldan ma'lumot qidirish", callback_data="tools_search")],
     ])
 
 

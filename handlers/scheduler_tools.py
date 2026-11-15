@@ -1,10 +1,12 @@
+import html
 import logging
-from datetime import datetime
 from aiogram import Router, Bot
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from config import ADMIN_ID
 from services.database import get_due_reminders, mark_reminder_done
+from services.timeutil import now_tashkent, DB_FORMAT
 
 router = Router()
 scheduler = AsyncIOScheduler(timezone="Asia/Tashkent")
@@ -30,7 +32,7 @@ async def daily_report(bot: Bot):
     if not ADMIN_ID:
         return
     try:
-        now = datetime.now().strftime("%d.%m.%Y %H:%M")
+        now = now_tashkent().strftime("%d.%m.%Y %H:%M")
         await bot.send_message(
             chat_id=int(ADMIN_ID),
             text=(
@@ -50,19 +52,24 @@ async def daily_report(bot: Bot):
 async def check_reminders(bot: Bot):
     """Har daqiqada bazadan vaqti kelgan eslatmalarni tekshiradi."""
     try:
-        reminders = await get_due_reminders()
+        reminders = await get_due_reminders(now_tashkent().strftime(DB_FORMAT))
         for rem_id, u_id, text in reminders:
             try:
                 await bot.send_message(
-                    chat_id=u_id, 
-                    text=f"⏰ <b>ESLATMA!</b>\n\n{text}", 
+                    chat_id=u_id,
+                    text=f"⏰ <b>ESLATMA!</b>\n\n{html.escape(text)}",
                     parse_mode="HTML"
                 )
                 await mark_reminder_done(rem_id)
-            except Exception as e:
+            except (TelegramForbiddenError, TelegramBadRequest) as e:
+                # Foydalanuvchi botni bloklagan / chat yo'q — qayta urinish foydasiz, har daqiqa logni to'ldirmasin
+                logging.warning(f"Eslatma {rem_id} yuborilmadi va yopildi (user: {u_id}): {e}")
+                await mark_reminder_done(rem_id)
+            except Exception as e:  # tarmoq xatosi — keyingi daqiqada qayta urinadi
                 logging.error(f"Eslatma yuborishda xato (user: {u_id}): {e}")
     except Exception as e:
         logging.error(f"Check reminders xatosi: {e}")
+
 
 def setup_daily_job(bot: Bot):
     """Barcha rejalashtirilgan vazifalarni schedulerga qo'shish."""

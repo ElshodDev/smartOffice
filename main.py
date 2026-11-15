@@ -12,7 +12,6 @@ from handlers import (
     excel_hub,
     word_hub,
     converter_hub,
-    tools_hub,
     # ── Funksional handlerlari ──
     excel_tools,
     excel_utils,
@@ -140,7 +139,6 @@ async def main():
     dp.include_router(excel_hub.router)
     dp.include_router(word_hub.router)
     dp.include_router(converter_hub.router)
-    dp.include_router(tools_hub.router)
     # ── Funksional routerlar (hub ichidan chaqiriladi) ──
     dp.include_router(excel_tools.router)
     dp.include_router(excel_utils.router)

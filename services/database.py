@@ -50,10 +50,15 @@ async def add_reminder(user_id: int, text: str, run_date_str: str):
                          (user_id, text, run_date_str))
         await db.commit()
 
-async def get_due_reminders():
-    """Vaqti kelgan (yoki o'tib ketgan) bajarilmagan eslatmalarni olish"""
+async def get_due_reminders(now_str: str):
+    """
+    Vaqti kelgan bajarilmagan eslatmalar. now_str — Toshkent vaqti ("YYYY-MM-DD HH:MM:SS").
+    Server UTC'da ishlagani uchun SQLite'ning 'localtime' iga tayanmaymiz.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT id, user_id, text FROM reminders WHERE is_done = 0 AND run_date <= datetime('now', 'localtime')") as cursor:
+        async with db.execute(
+            "SELECT id, user_id, text FROM reminders WHERE is_done = 0 AND run_date <= ?", (now_str,)
+        ) as cursor:
             return await cursor.fetchall()
 
 async def mark_reminder_done(reminder_id: int):
@@ -61,6 +66,22 @@ async def mark_reminder_done(reminder_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE reminders SET is_done = 1 WHERE id = ?", (reminder_id,))
         await db.commit()
+
+async def get_user_reminders(user_id: int) -> list[tuple]:
+    """Foydalanuvchining bajarilmagan eslatmalari: (id, text, run_date), vaqt bo'yicha."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id, text, run_date FROM reminders WHERE user_id = ? AND is_done = 0 ORDER BY run_date",
+            (user_id,),
+        ) as cursor:
+            return await cursor.fetchall()
+
+async def delete_reminder(reminder_id: int, user_id: int) -> bool:
+    """Faqat egasi o'z eslatmasini o'chira oladi."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM reminders WHERE id = ? AND user_id = ?", (reminder_id, user_id))
+        await db.commit()
+        return cursor.rowcount > 0
 
 async def get_all_users() -> list[int]:
     """Bazadagi barcha foydalanuvchilarning telegram_id larini qaytaradi."""

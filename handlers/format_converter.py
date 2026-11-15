@@ -48,9 +48,11 @@ def get_converter_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📄 PDF ➡️ Word", callback_data="format_pdf2word")],
         [InlineKeyboardButton(text="🖼 Rasm(lar) ➡️ PDF", callback_data="format_img2pdf")],
         [InlineKeyboardButton(text="📸 Hujjatni skanerlash (suratdan toza PDF)", callback_data="format_scan")],
+        [InlineKeyboardButton(text="🖼 Rasmdan matn o'qish (OCR)", callback_data="tools_ocr")],
         [InlineKeyboardButton(text="📄 PDF ➡️ Rasm (JPG)", callback_data="format_pdf2img")],
         [InlineKeyboardButton(text="🗜 PDF hajmini kichraytirish", callback_data="format_compress")],
         [InlineKeyboardButton(text="📱 Rasm formati ➡️ JPG (HEIC, WEBP, PNG)", callback_data="format_img2jpg")],
+        [InlineKeyboardButton(text="🔳 QR kod yaratish", callback_data="util_qr")],
     ])
 
 

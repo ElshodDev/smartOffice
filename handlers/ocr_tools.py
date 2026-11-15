@@ -1,24 +1,40 @@
+"""🖼 OCR — rasmdan matn o'qish (o'zbek, rus, ingliz). Bir nechta rasmni ketma-ket yuborish mumkin."""
+import html
+import logging
 import os
 import sys
-import logging
+
 from aiogram import Router, F, Bot
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from PIL import Image, ImageOps
 
-# Windows uchun Tesseract yo'li (o'rnatgandan keyin avtomatik topiladi)
+from services.converter_service import run_heavy, MAX_FILE_SIZE, human_size, IMAGE_EXTENSIONS
+from services.tempfiles import new_job_dir, remove
+
 try:
     import pytesseract
-    # Standart Windows o'rnatish joyi
-    # Tesseract yo'lini faqat Windowsda ko'rsatamiz. Linux/Docker da u avtomatik topiladi.
-    if sys.platform == "win32":
-        tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-        if os.path.exists(tesseract_path):
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    if sys.platform == "win32":  # Linux/Docker'da Tesseract avtomatik topiladi
+        _win_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if os.path.exists(_win_path):
+            pytesseract.pytesseract.tesseract_cmd = _win_path
 except ImportError:
-    pass
+    pytesseract = None
 
 router = Router()
+
+TEXT_LIMIT = 3800
+OCR_MAX_SIDE = 3000
+
+OCR_INTRO = (
+    "🖼 <b>Rasmdan matn o'qish (OCR)</b>\n\n"
+    "Matn yozilgan rasmni yuboring (foto yoki fayl sifatida). O'zbek, rus va ingliz matnlarini taniydi.\n"
+    "<i>Bir nechta rasmni ketma-ket yuborishingiz mumkin. Aniq natija uchun rasm tiniq va yaxshi yoritilgan bo'lsin.</i>"
+)
+FINISH_KB = InlineKeyboardMarkup(inline_keyboard=[[
+    InlineKeyboardButton(text="✅ Tugatish", callback_data="ocr_finish")
+]])
 
 
 class OCRStates(StatesGroup):
@@ -28,116 +44,84 @@ class OCRStates(StatesGroup):
 @router.message(F.text == "🖼 OCR — Rasmdan matn")
 async def ocr_start(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer(
-        "🖼 <b>OCR — Rasmdan matn o'qish</b>\n\n"
-        "Matn yozilgan rasmni yuboring (foto yoki fayl sifatida).\n"
-        "<i>Inglizcha, Ruscha va O'zbekcha matnlarni taniydi.</i>",
-        parse_mode="HTML"
-    )
+    await message.answer(OCR_INTRO, parse_mode="HTML")
     await state.set_state(OCRStates.waiting_for_image)
 
 
+@router.callback_query(F.data == "tools_ocr")
+async def ocr_start_cb(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()
+    await callback.message.edit_text(OCR_INTRO, parse_mode="HTML")
+    await state.set_state(OCRStates.waiting_for_image)
+
+
+def _recognize(path: str) -> str:
+    with Image.open(path) as image:
+        image = ImageOps.exif_transpose(image).convert("L")
+        if max(image.size) > OCR_MAX_SIDE:
+            image.thumbnail((OCR_MAX_SIDE, OCR_MAX_SIDE))
+        return pytesseract.image_to_string(image, lang="uzb+rus+eng", config="--oem 3 --psm 6").strip()
+
+
 @router.message(OCRStates.waiting_for_image, F.photo | F.document)
-async def ocr_process(message: Message, state: FSMContext, bot: Bot):
-    try:
-        import pytesseract
-        from PIL import Image
-    except ImportError:
+async def ocr_process(message: Message, bot: Bot):
+    if pytesseract is None:
         await message.answer("❌ OCR kutubxonasi o'rnatilmagan. Administrator bilan bog'laning.")
-        await state.clear()
+        return
+    if message.photo:
+        file, ext = message.photo[-1], ".jpg"
+    else:
+        file = message.document
+        name = (file.file_name or "").lower()
+        if not name.endswith(IMAGE_EXTENSIONS):
+            await message.answer("❌ Rasm yuboring: JPG, PNG, WEBP, HEIC, BMP yoki TIFF.\n"
+                                 "<i>PDF bo'lsa, avval «PDF ➡️ Rasm» orqali rasmga o'giring.</i>", parse_mode="HTML")
+            return
+        ext = os.path.splitext(name)[1]
+    if file.file_size and file.file_size > MAX_FILE_SIZE:
+        await message.answer(f"❌ Fayl juda katta ({human_size(file.file_size)}). Limit — 20 MB.")
         return
 
-    os.makedirs("temp", exist_ok=True)
-
-    # Faylni aniqlash (rasm yoki dokument)
-    if message.photo:
-        photo     = message.photo[-1]
-        file_id   = photo.file_id
-        file_name = f"ocr_{file_id}.jpg"
-    else:
-        doc = message.document
-        valid_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp")
-        if not any(doc.file_name.lower().endswith(e) for e in valid_exts):
-            await message.answer(
-                "❌ Iltimos, rasm formatidagi fayl yuboring:\n"
-                "<i>.jpg, .jpeg, .png, .bmp, .tiff</i>",
-                parse_mode="HTML"
-            )
-            return
-        file_id   = doc.file_id
-        file_name = f"ocr_{doc.file_id}_{doc.file_name}"
-
-    img_path = f"temp/{file_name}"
-    await bot.download(file_id, destination=img_path)
-
+    job_dir = new_job_dir("ocr")
+    img_path = os.path.join(job_dir, "image" + ext)
     msg = await message.answer("🔍 Rasm tahlil qilinmoqda, kuting... ⏳")
-
     try:
-        image = Image.open(img_path)
-
-        # Ko'p tilli tanib olish: O'zbek (lotin), Rus, Ingliz
-        extracted = pytesseract.image_to_string(
-            image,
-            lang="eng+rus+uzb",
-            config="--oem 3 --psm 6"
-        ).strip()
-
-        if not extracted:
+        await bot.download(file, destination=img_path)
+        text = await run_heavy(_recognize, img_path)
+        if not text:
             await msg.edit_text(
-                "⚠️ Rasmdan matn topilmadi.\n\n"
-                "<i>Maslahat: Rasm aniq va yaxshi yoritilgan bo'lsa natija yaxshiroq bo'ladi.</i>",
-                parse_mode="HTML"
+                "⚠️ Rasmdan matn topilmadi.\n\n<i>Rasm aniq, to'g'ri burchakda va yaxshi yoritilgan bo'lsin.</i>",
+                parse_mode="HTML", reply_markup=FINISH_KB,
             )
             return
-
-        # HTML maxsus belgilarni xavfsiz qilish (injection oldini olish)
-        import html as html_module
-        safe_text = html_module.escape(extracted)
-
-        # Natijani chiqarish (Telegram 4096 belgi limiti)
-        LIMIT = 3800
-        if len(safe_text) <= LIMIT:
-            await msg.edit_text(
-                f"✅ <b>Aniqlangan matn:</b>\n\n"
-                f"<code>{safe_text}</code>",
-                parse_mode="HTML"
-            )
+        safe = html.escape(text)
+        if len(safe) <= TEXT_LIMIT:
+            await msg.edit_text(f"✅ <b>Aniqlangan matn:</b>\n\n<code>{safe}</code>", parse_mode="HTML", reply_markup=FINISH_KB)
         else:
-            # Uzun matnni .txt fayl sifatida yuborish
-            await msg.delete()
-            txt_path = img_path.replace(img_path.split(".")[-1], "txt").replace(
-                f"temp/ocr_", "temp/ocr_result_"
-            )
-            txt_path = f"temp/ocr_result_{file_id}.txt"
+            txt_path = os.path.join(job_dir, "ocr_natija.txt")
             with open(txt_path, "w", encoding="utf-8") as f:
-                f.write(extracted)
-
-            result_file = FSInputFile(txt_path, filename="ocr_natija.txt")
+                f.write(text)
             await message.answer_document(
-                document=result_file,
-                caption=(
-                    f"✅ <b>Matn aniqlandi!</b>\n\n"
-                    f"📝 Belgilar soni: <b>{len(extracted)}</b>\n"
-                    f"Matn .txt fayl sifatida yuborildi."
-                ),
-                parse_mode="HTML"
+                FSInputFile(txt_path),
+                caption=f"✅ Matn aniqlandi ({len(text)} belgi) — .txt faylda.",
+                reply_markup=FINISH_KB,
             )
-
-            if os.path.exists(txt_path):
-                os.remove(txt_path)
-
-    except pytesseract.TesseractNotFoundError:
-        await msg.edit_text(
-            "❌ Tesseract OCR tizimga o'rnatilmagan.\n\n"
-            "<b>O'rnatish uchun:</b>\n"
-            "<code>https://github.com/UB-Mannheim/tesseract/wiki</code>\n"
-            "O'rnatgach, PATH ga qo'shing.",
-            parse_mode="HTML"
-        )
+            await msg.delete()
     except Exception as e:
-        logging.error(f"OCR xatosi: {e}")
-        await msg.edit_text("❌ Rasmni tahlil qilishda xatolik yuz berdi.")
+        if pytesseract and isinstance(e, pytesseract.TesseractNotFoundError):
+            logging.error("Tesseract o'rnatilmagan")
+            await msg.edit_text("❌ Serverda OCR dasturi (Tesseract) o'rnatilmagan. Administrator bilan bog'laning.")
+        else:
+            logging.exception("OCR xatosi")
+            await msg.edit_text("❌ Rasmni tahlil qilishda xatolik yuz berdi. Boshqa rasm yuborib ko'ring.",
+                                reply_markup=FINISH_KB)
     finally:
-        if os.path.exists(img_path):
-            os.remove(img_path)
-        await state.clear()
+        remove(job_dir)
+
+
+@router.callback_query(F.data == "ocr_finish")
+async def ocr_finish(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Tugatildi")
+    await state.clear()
+    await callback.message.edit_reply_markup(reply_markup=None)
