@@ -64,7 +64,26 @@ async def _migration_2(db: aiosqlite.Connection) -> None:
         )
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2)
+async def _migration_3(db: aiosqlite.Connection) -> None:
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS form_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_hash TEXT UNIQUE NOT NULL,
+            user_id BIGINT NOT NULL,
+            filename TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME
+        )
+        """
+    )
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_form_sessions_expiry "
+        "ON form_sessions (expires_at)"
+    )
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3)
 
 
 async def apply_migrations(db: aiosqlite.Connection) -> None:

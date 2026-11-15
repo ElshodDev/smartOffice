@@ -424,6 +424,7 @@ let textOverlays = [];
 let signatureDataUrl = null;
 let imgFilename = '';
 let chatId = null;
+let formToken = '';
 
 // ── Init ──
 const tgUser = tg.initDataUnsafe?.user;
@@ -431,6 +432,7 @@ if (tgUser) chatId = tgUser.id;
 
 const urlParams = new URLSearchParams(window.location.search);
 imgFilename = urlParams.get('img') || '';
+formToken = urlParams.get('token') || '';
 
 const baseImage = document.getElementById('base-image');
 const drawCanvas = document.getElementById('draw-canvas');
@@ -450,7 +452,7 @@ baseImage.onload = () => {
 baseImage.onerror = () => {
     loading.innerHTML = '<p style="color:#ef4444">❌ Rasm yuklanmadi. Qaytadan urinib ko\'ring.</p>';
 };
-baseImage.src = `/forms/${imgFilename}`;
+baseImage.src = `/forms/${imgFilename}?token=${encodeURIComponent(formToken)}`;
 
 window.addEventListener('resize', () => {
     drawCanvas.style.width = baseImage.offsetWidth + 'px';
@@ -897,6 +899,7 @@ async function saveAndSend() {
             },
             body: JSON.stringify({
                 chat_id: chatId,
+                token: formToken,
                 image: imageDataUrl,
                 filename: imgFilename
             })
