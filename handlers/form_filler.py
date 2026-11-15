@@ -5,17 +5,17 @@ bot Web Ilova orqali tahrirlash havolasini beradi.
 import os
 import uuid
 import logging
-import aiofiles
 from aiogram import Router, F, Bot
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types.web_app_info import WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from config import RENDER_URL
+from services.database import create_form_session
 
 router = Router()
 logger = logging.getLogger(__name__)
 
-RENDER_URL = os.environ.get("RENDER_URL", "https://smartoffice-moms.onrender.com")
 TEMP_DIR = "temp/forms"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -45,13 +45,14 @@ async def handle_form_photo(message: Message, state: FSMContext, bot: Bot):
         # Eng katta o'lchamdagi rasmni olish
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
-        file_id = str(uuid.uuid4())[:8]
+        file_id = uuid.uuid4().hex
         filename = f"{file_id}.jpg"
         filepath = os.path.join(TEMP_DIR, filename)
 
         await bot.download_file(file.file_path, destination=filepath)
 
-        editor_url = f"{RENDER_URL}/form-editor?img={filename}"
+        token = await create_form_session(message.from_user.id, filename)
+        editor_url = f"{RENDER_URL}/form-editor?img={filename}&token={token}"
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
@@ -91,13 +92,14 @@ async def handle_form_document(message: Message, state: FSMContext, bot: Bot):
     try:
         file = await bot.get_file(doc.file_id)
         ext = doc.file_name.split(".")[-1] if "." in doc.file_name else "jpg"
-        file_id = str(uuid.uuid4())[:8]
+        file_id = uuid.uuid4().hex
         filename = f"{file_id}.{ext}"
         filepath = os.path.join(TEMP_DIR, filename)
 
         await bot.download_file(file.file_path, destination=filepath)
 
-        editor_url = f"{RENDER_URL}/form-editor?img={filename}"
+        token = await create_form_session(message.from_user.id, filename)
+        editor_url = f"{RENDER_URL}/form-editor?img={filename}&token={token}"
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
