@@ -30,7 +30,7 @@ magic-filter==1.0.12
 matplotlib==3.11.1
 multidict==6.7.1
 numpy==2.4.6
-opencv-python==5.0.0.93
+opencv-python==4.14.0.94
 openpyxl==3.1.5
 xlrd==2.0.1
 packaging==26.3
@@ -64,7 +64,7 @@ tzdata==2026.3
 tzlocal==5.4.4
 urllib3==2.7.0
 yarl==1.24.5
-fpdf2
+fpdf2==2.9.0
 reportlab
 
 pydantic-settings==2.10.1

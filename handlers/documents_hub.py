@@ -50,6 +50,6 @@ async def redirect_to_word(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "hub_obyektivka")
 async def redirect_to_obyektivka(callback: CallbackQuery, state: FSMContext):
-    from handlers.form_filler import form_filler_start
-    await callback.message.delete()
-    await form_filler_start(callback.message, state)
+    # Avval bu tugma xato bilan «Blankani to'ldirish» ni ochardi
+    from handlers.report_generator import start_report_cb
+    await start_report_cb(callback, state)

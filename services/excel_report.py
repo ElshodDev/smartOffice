@@ -9,6 +9,7 @@ from datetime import datetime
 
 FIELD_LABELS = {
     'full_name':    'F.I.Sh.',
+    'current_position': 'Hozirgi ish joyi va lavozimi',
     'birth_date':   "Tug'ilgan yili",
     'birth_place':  "Tug'ilgan joyi",
     'nationality':  'Millati',
@@ -100,10 +101,11 @@ def generate_excel(data: dict) -> bytes:
         value_cell = ws.cell(row=current_row, column=2, value=str(value))
         value_cell.font = Font(name='Calibri', size=11, color=VALUE_FG)
         value_cell.fill = PatternFill('solid', fgColor=bg)
-        value_cell.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        value_cell.alignment = Alignment(horizontal='left', vertical='center', indent=1, wrap_text=True)
         value_cell.border = _thin_border()
 
-        ws.row_dimensions[current_row].height = 20
+        text_lines = sum(max(1, -(-len(part) // 48)) for part in str(value).split("\n"))
+        ws.row_dimensions[current_row].height = max(20, 15 * text_lines + 4)
         current_row += 1
 
     # ── Footer ──
@@ -114,6 +116,29 @@ def generate_excel(data: dict) -> bytes:
     footer.fill = PatternFill('solid', fgColor=HEADER_BG)
     footer.alignment = Alignment(horizontal='center', vertical='center')
     ws.row_dimensions[current_row].height = 18
+
+    # ── 2-varaq: yaqin qarindoshlar (5 ustun) ──
+    relatives = data.get('relatives') or []
+    if relatives:
+        rs = wb.create_sheet("Qarindoshlar")
+        headers = ["Qarindoshligi", "Familiyasi, ismi va otasining ismi", "Tug'ilgan yili va joyi",
+                   "Ish joyi va lavozimi", "Turar joyi"]
+        widths = [18, 34, 30, 34, 30]
+        for col, (title, width) in enumerate(zip(headers, widths), start=1):
+            cell = rs.cell(row=1, column=col, value=title)
+            cell.font = Font(name='Calibri', bold=True, size=11, color=HEADER_FG)
+            cell.fill = PatternFill('solid', fgColor=HEADER_BG)
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = _thin_border()
+            rs.column_dimensions[get_column_letter(col)].width = width
+        rs.row_dimensions[1].height = 32
+        for r_idx, rel in enumerate(relatives, start=2):
+            values = [rel.get('rel', ''), rel.get('name', ''), rel.get('birth', ''), rel.get('work', ''), rel.get('address', '')]
+            for col, value in enumerate(values, start=1):
+                cell = rs.cell(row=r_idx, column=col, value=value)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                cell.border = _thin_border()
+        rs.freeze_panes = "A2"
 
     # ── Save to bytes ──
     buf = io.BytesIO()

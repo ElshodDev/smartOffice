@@ -22,8 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # pdf2docx opencv-python (GUI) ni talab qiladi, u esa libGL kutubxonasisiz ishlamaydi.
 # Serverda grafik interfeys yo'q, shuning uchun uni headless versiyasiga almashtiramiz.
+# 4.x versiya: obyektivka rasmi uchun yuz aniqlash modeli (Haar cascade) paket ichida keladi.
 RUN pip uninstall -y opencv-python \
-    && pip install --no-cache-dir opencv-python-headless==5.0.0.93
+    && pip install --no-cache-dir opencv-python-headless==4.14.0.94
 
 # Barcha kod va fayllarni konteynerga nusxalash
 COPY . .
