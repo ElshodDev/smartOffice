@@ -13,11 +13,23 @@ router = Router()
 
 def get_converter_hub_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Tarjimon / Alifbo o'zgartirish", callback_data="conv_hub_translate")],
+        [InlineKeyboardButton(text="🔤 Tarjimon va Alifbo", callback_data="conv_hub_translate")],
         [InlineKeyboardButton(text="📁 Fayl formatini o'zgartirish", callback_data="conv_hub_format")],
     ])
 
 
+@router.message(F.text == "📁 Format o'zgartirish")
+async def show_format_converter(message: Message, state: FSMContext):
+    await state.clear()
+    from handlers.format_converter import get_converter_menu
+    await message.answer(
+        "📁 <b>Fayl formatini o'zgartirish</b>\n\nQaysi formatni xohlaysiz?",
+        parse_mode="HTML",
+        reply_markup=get_converter_menu()
+    )
+
+
+# Eski klaviaturasi qolgan foydalanuvchilar uchun (/start bosmaguncha)
 @router.message(F.text == "🔄 Formatlar va Tarjima")
 async def show_converter_hub(message: Message, state: FSMContext):
     await state.clear()
@@ -33,9 +45,9 @@ async def show_converter_hub(message: Message, state: FSMContext):
 async def go_translator(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     from handlers.converter import get_direction_menu
+    from handlers.converter import TRANSLATOR_TITLE
     await callback.message.edit_text(
-        "🔄 <b>Tarjimon / Alifbo</b>\n\n"
-        "Yo'nalishni tanlang:",
+        TRANSLATOR_TITLE,
         parse_mode="HTML",
         reply_markup=get_direction_menu()
     )

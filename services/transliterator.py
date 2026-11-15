@@ -1,3 +1,5 @@
+import re
+
 LATIN_TO_CYRILLIC = {
     'sh': 'ш', 'Sh': 'Ш', 'SH': 'Ш',
     'ch': 'ч', 'Ch': 'Ч', 'CH': 'Ч',
@@ -79,3 +81,67 @@ def to_latin(text: str) -> str:
     for k, v in CYRILLIC_TO_LATIN.items():
         text = text.replace(k, v)
     return text
+
+
+# ── Yangi lotin alifbosi (2021-yil loyihasi) ─────────────────────────────
+# o' → ó, g' → ǵ, sh → ş, ch → ç, ng → ñ
+
+# O'zbek tilida o'/g' harflari turli tutuq belgilari bilan yoziladi: ' ‘ ’ ʻ ʼ `
+_APOSTROPHES = "'‘’ʻʼ`"
+_NEW_LATIN_RULES = [
+    (re.compile(rf"([oO])[{_APOSTROPHES}]"), {"o": "ó", "O": "Ó"}),
+    (re.compile(rf"([gG])[{_APOSTROPHES}]"), {"g": "ǵ", "G": "Ǵ"}),
+    (re.compile(r"([sS])[hH]"), {"s": "ş", "S": "Ş"}),
+    (re.compile(r"([cC])[hH]"), {"c": "ç", "C": "Ç"}),
+    (re.compile(r"([nN])[gG]"), {"n": "ñ", "N": "Ñ"}),
+]
+
+
+def to_new_latin(text: str) -> str:
+    """Hozirgi lotin yozuvidagi matnni yangi lotin alifbosiga o'giradi."""
+    for pattern, mapping in _NEW_LATIN_RULES:
+        text = pattern.sub(lambda m: mapping[m.group(1)], text)
+    return text
+
+
+def _iter_paragraphs(container):
+    """Hujjat, jadval katakchalari ichidagi barcha paragraflarni qaytaradi."""
+    for paragraph in container.paragraphs:
+        yield paragraph
+    for table in getattr(container, "tables", []):
+        for row in table.rows:
+            for cell in row.cells:
+                yield from _iter_paragraphs(cell)
+
+
+def transliterate_docx(src_path: str, dst_path: str, convert) -> int:
+    """
+    Word hujjatdagi matnni `convert` funksiyasi bilan o'giradi.
+    Shrift, qalinlik, rang kabi formatlash saqlanadi (har bir "run" alohida o'giriladi).
+    O'girilgan belgilar sonini qaytaradi.
+    """
+    from docx import Document
+
+    document = Document(src_path)
+    containers = [document]
+    for section in document.sections:
+        containers += [section.header, section.footer]
+
+    changed = 0
+    for container in containers:
+        for paragraph in _iter_paragraphs(container):
+            for run in paragraph.runs:
+                if run.text:
+                    new_text = convert(run.text)
+                    if new_text != run.text:
+                        run.text = new_text
+                        changed += 1
+    document.save(dst_path)
+    return changed
+
+
+def docx_has_text(path: str) -> bool:
+    from docx import Document
+
+    document = Document(path)
+    return any(p.text.strip() for p in _iter_paragraphs(document))

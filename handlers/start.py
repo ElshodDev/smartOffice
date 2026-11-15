@@ -23,8 +23,11 @@ WELCOME_TEXT = (
     "📁 <b>Hujjatlar bilan ishlash:</b>\n"
     "Excel, PDF, Word hujjatlarini tahrirlash, qirqish, birlashtirish va imzo qo'yish. Ma'lumotnoma (Obyektivka) yaratish.\n\n"
 
-    "🔄 <b>Formatlar va Tarjima:</b>\n"
-    "Rasmni PDF ga, PDF ni Word ga va Word ni PDF ga sifatli o'girish, shuningdek matnlarni tarjima qilish.\n\n"
+    "🔤 <b>Tarjimon va Alifbo:</b>\n"
+    "Matnlarni tarjima qilish (UZ, EN, RU), Lotin↔Kirill va yangi lotin alifbosiga o'girish (matn, Word, PDF).\n\n"
+
+    "📁 <b>Format o'zgartirish:</b>\n"
+    "PDF ni Word ga, rasmni PDF ga o'girish.\n\n"
 
     "🤖 <b>AI Yordamchi:</b>\n"
     "Savollaringizga javob topish uchun sun'iy intellekt.\n\n"

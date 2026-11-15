@@ -10,11 +10,14 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="📁 Hujjatlar bilan ishlash")
         ],
         [
-            KeyboardButton(text="🔄 Formatlar va Tarjima"),
-            KeyboardButton(text="🤖 AI Yordamchi (Savol-javob)"),
+            KeyboardButton(text="🔤 Tarjimon va Alifbo"),
+            KeyboardButton(text="📁 Format o'zgartirish"),
         ],
         [
+            KeyboardButton(text="🤖 AI Yordamchi (Savol-javob)"),
             KeyboardButton(text="👤 Profil va Sozlamalar"),
+        ],
+        [
             KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
         ]
     ]
