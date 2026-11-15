@@ -14,7 +14,7 @@ from services.transliterator import (
     to_cyrillic, to_latin, to_new_latin,
     transliterate_docx, docx_has_text,
 )
-from services.converter_service import ConverterService
+from services.converter_service import ConverterService, ConversionError, run_heavy
 
 router = Router()
 
@@ -203,25 +203,30 @@ async def convert_file(message: Message, state: FSMContext, bot: Bot):
         await bot.download(doc, destination=in_path)
 
         if ext == ".txt":
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.write(convert(_read_text_file(in_path)))
+            def _convert_txt():
+                with open(out_path, "w", encoding="utf-8") as f:
+                    f.write(convert(_read_text_file(in_path)))
+            await run_heavy(_convert_txt)
         elif ext == ".docx":
-            transliterate_docx(in_path, out_path, convert)
+            await run_heavy(transliterate_docx, in_path, out_path, convert)
         else:  # .pdf → avval Word'ga, keyin o'giramiz
-            if not ConverterService.pdf_to_word(in_path, mid_path) or not docx_has_text(mid_path):
+            converted = await run_heavy(ConverterService.pdf_to_word, in_path, mid_path)
+            if not converted or not await run_heavy(docx_has_text, mid_path):
                 await msg.edit_text(
                     "❌ PDF ichidan matn topilmadi.\n\n"
                     "Fayl skaner qilingan (rasm ko'rinishidagi) bo'lishi mumkin. "
                     "Bunday faylni avval OCR orqali matnga o'giring."
                 )
                 return
-            transliterate_docx(mid_path, out_path, convert)
+            await run_heavy(transliterate_docx, mid_path, out_path, convert)
 
         await message.answer_document(
             FSInputFile(out_path, filename=f"{base}_{direction.split('_')[-1]}{out_ext}"),
             caption=f"✅ Tayyor! ({ALPHABET_DIRECTIONS[direction][0]})\n\nYana fayl yoki matn yuborishingiz mumkin.",
         )
         await msg.delete()
+    except ConversionError as e:
+        await msg.edit_text(str(e))
     except Exception as e:
         logging.exception(f"Faylni alifboga o'girishda xatolik: {e}")
         await msg.edit_text("❌ Faylni o'girishda xatolik yuz berdi. Fayl buzilgan bo'lishi mumkin.")
