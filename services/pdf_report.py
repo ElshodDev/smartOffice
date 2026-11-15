@@ -19,6 +19,9 @@ def _clean_text(text: str) -> str:
     
     # Replace curly quotes with straight quotes
     text = text.replace('‘', "'").replace('’', "'").replace('“', '"').replace('”', '"')
+    # Telefon klaviaturalaridagi o'zbekcha apostroflar (oʻ, gʻ, ma'no) — aks holda "?" bo'lib chiqadi
+    text = text.replace('ʻ', "'").replace('ʼ', "'").replace('`', "'").replace('´', "'")
+    text = text.replace('«', '"').replace('»', '"').replace('–', '-').replace('—', '-')
     
     # Simple Cyrillic to Latin transliteration for Uzbek
     cyrillic_to_latin = {

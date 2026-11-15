@@ -1,347 +1,309 @@
-import os
+"""
+📝 Word vositalari: shablon to'ldirish, Word faylni o'qish va imzo (ism-familiya) qo'yish.
+"""
+import html
 import logging
+import os
+import re
+
 from aiogram import Router, F, Bot
-from aiogram.types import Message, FSInputFile, CallbackQuery
+from aiogram.types import Message, FSInputFile, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from docx import Document
-from docx.shared import Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+from services.converter_service import run_heavy, MAX_FILE_SIZE, human_size
+from services.docx_template import (
+    fill_template, template_placeholders, iter_all_paragraphs, normalize_key,
+)
+from services.tempfiles import new_job_dir, remove, safe_filename
 
 router = Router()
 
+MAX_PLACEHOLDERS_SHOWN = 40
+TELEGRAM_LIMIT = 4000
+
+
 class WordToolsStates(StatesGroup):
-    choosing_action = State()
-    # Shablon to'ldirish uchun holatlar
     waiting_for_template_file = State()
-    waiting_for_template_data  = State()
-    # Word o'qish uchun holat
+    waiting_for_template_data = State()
     waiting_for_read_file = State()
-    # Imzo qo'yish uchun holat
     waiting_for_signature = State()
 
-def get_word_menu():
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    keyboard = [
-        [
-            InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template"),
-            InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read")
-        ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-# ──────────────────────────────────────────────
-# ENTRY POINT
-# ──────────────────────────────────────────────
+def get_word_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📝 Shablon to'ldirish", callback_data="word_fill_template"),
+        InlineKeyboardButton(text="📖 Word faylni o'qish", callback_data="word_read"),
+    ]])
+
+
 @router.message(F.text == "📝 Word Hujjat")
 async def start_word_tools(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer(
-        "📝 <b>Word Hujjat vositalari</b>\n\nQuyidagi amallardan birini tanlang:",
-        parse_mode="HTML",
-        reply_markup=get_word_menu()
-    )
+    await message.answer("📝 <b>Word Hujjat vositalari</b>\n\nQuyidagi amallardan birini tanlang:",
+                         parse_mode="HTML", reply_markup=get_word_menu())
 
+
+async def _download_docx(message: Message, bot: Bot, prefix: str):
+    doc = message.document
+    if not (doc.file_name or "").lower().endswith(".docx"):
+        await message.answer(
+            "Iltimos, faqat <b>.docx</b> formatidagi fayl yuboring.\n"
+            "<i>Eski .doc fayl bo'lsa, Word'da «Saqlash» → .docx qilib saqlang.</i>",
+            parse_mode="HTML",
+        )
+        return None, None
+    if doc.file_size and doc.file_size > MAX_FILE_SIZE:
+        await message.answer(f"❌ Fayl juda katta ({human_size(doc.file_size)}). Limit — 20 MB.")
+        return None, None
+    job_dir = new_job_dir(prefix)
+    path = os.path.join(job_dir, "input.docx")
+    await bot.download(doc, destination=path)
+    return job_dir, path
 
 
 # ──────────────────────────────────────────────
-# SHABLON TO'LDIRISH ({{placeholder}} → qiymat)
+# SHABLON TO'LDIRISH ({{o'zgaruvchi}} → qiymat)
 # ──────────────────────────────────────────────
 @router.callback_query(F.data == "word_fill_template")
-async def ask_template_file(callback, state: FSMContext):
+async def ask_template_file(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    remove((await state.get_data()).get("job_dir"))
+    await state.clear()
     await callback.message.answer(
         "📎 Iltimos, to'ldirmoqchi bo'lgan <b>.docx</b> shablon faylni yuboring.\n\n"
-        "<i>Fayldagi <b>{{o'zgaruvchi_nomi}}</b> ko'rinishidagi joylar to'ldiriladi.</i>",
-        parse_mode="HTML"
+        "<i>Fayldagi <b>{{ism}}</b>, <b>{{o'qituvchi}}</b>, <b>{{Tug'ilgan sana}}</b> ko'rinishidagi joylar "
+        "to'ldiriladi — matnda, jadvallarda va kolontitullarda.</i>",
+        parse_mode="HTML",
     )
     await state.set_state(WordToolsStates.waiting_for_template_file)
 
+
 @router.message(WordToolsStates.waiting_for_template_file, F.document)
 async def receive_template(message: Message, state: FSMContext, bot: Bot):
-    doc = message.document
-    if not doc.file_name.endswith('.docx'):
-        await message.answer("Iltimos, faqat <b>.docx</b> formatidagi fayl yuboring.", parse_mode="HTML")
+    job_dir, path = await _download_docx(message, bot, "wordtpl")
+    if not path:
         return
-
-    os.makedirs("temp", exist_ok=True)
-    file_path = f"temp/template_{doc.file_id}.docx"
-    await bot.download(doc, destination=file_path)
-
-    # Shablon ichidagi o'zgaruvchilarni aniqlash
-    from docx import Document as DocxDoc
-    import re
-    d = DocxDoc(file_path)
-    full_text = " ".join([p.text for p in d.paragraphs])
-    placeholders = list(dict.fromkeys(re.findall(r"\{\{(\w+)\}\}", full_text)))
-
+    try:
+        placeholders = await run_heavy(template_placeholders, path)
+    except Exception:
+        logging.exception("Shablonni o'qib bo'lmadi")
+        remove(job_dir)
+        await message.answer("❌ Faylni o'qib bo'lmadi. Fayl shikastlangan bo'lishi mumkin.")
+        await state.clear()
+        return
     if not placeholders:
+        remove(job_dir)
         await message.answer(
             "⚠️ Faylda <b>{{o'zgaruvchi}}</b> ko'rinishidagi joylar topilmadi.\n"
-            "Avval shablonni to'g'ri tuzib yuboring.",
-            parse_mode="HTML"
+            "Shablonda to'ldiriladigan joylarni qo'sh jingalak qavsga oling, masalan: <code>{{ism}}</code>",
+            parse_mode="HTML",
         )
-        os.remove(file_path)
         await state.clear()
         return
 
-    await state.update_data(
-        template_path=file_path,
-        original_name=doc.file_name,
-        placeholders=placeholders,
-        filled={}
-    )
-
-    placeholder_list = "\n".join([f"  • <code>{{{{{p}}}}}</code>" for p in placeholders])
+    await state.update_data(job_dir=job_dir, template_path=path, original_name=message.document.file_name,
+                            placeholders=placeholders)
+    shown = placeholders[:MAX_PLACEHOLDERS_SHOWN]
+    listing = "\n".join(f"  • <code>{html.escape(p)}</code>" for p in shown)
+    if len(placeholders) > len(shown):
+        listing += f"\n  … va yana {len(placeholders) - len(shown)} ta"
+    example = "\n".join(f"{html.escape(p)}: ..." for p in placeholders[:3])
     await message.answer(
-        f"✅ Shablon qabul qilindi!\n\n"
-        f"Faylda quyidagi <b>{len(placeholders)}</b> ta o'zgaruvchi topildi:\n{placeholder_list}\n\n"
-        f"Endi har bir qiymatni <b>qator:qiymat</b> formatida yuboring.\n\n"
-        f"<b>Misol:</b>\n<code>ism:Elshod Ibodullayev\nsana:04.08.2026\ntelefon:+998901234567</code>",
-        parse_mode="HTML"
+        f"✅ Shablon qabul qilindi! <b>{len(placeholders)}</b> ta o'zgaruvchi topildi:\n{listing}\n\n"
+        "Endi qiymatlarni <b>nom: qiymat</b> ko'rinishida, har birini yangi qatorda yuboring.\n\n"
+        f"<b>Namuna:</b>\n<code>{example}</code>",
+        parse_mode="HTML",
     )
     await state.set_state(WordToolsStates.waiting_for_template_data)
 
+
 @router.message(WordToolsStates.waiting_for_template_data, F.text)
-async def fill_template(message: Message, state: FSMContext):
-    raw = message.text.strip()
+async def fill_template_handler(message: Message, state: FSMContext):
     data = await state.get_data()
+    placeholders = data["placeholders"]
+    known = {normalize_key(p): p for p in placeholders}
 
-    template_path = data['template_path']
-    original_name = data['original_name']
-    placeholders  = data['placeholders']
-
-    # Kiritilgan qiymatlarni parse qilish
-    mapping = {}
-    errors  = []
-    for line in raw.splitlines():
-        if ":" in line:
-            key, _, val = line.partition(":")
-            mapping[key.strip()] = val.strip()
+    values, bad_lines, unknown = {}, [], []
+    for line in message.text.splitlines():
+        if not line.strip():
+            continue
+        key, sep, value = line.partition(":")
+        if not sep:
+            bad_lines.append(line)
+            continue
+        if normalize_key(key) in known:
+            values[key] = value.strip()
         else:
-            errors.append(line)
-
-    if errors:
+            unknown.append(key.strip())
+    if not values:
         await message.answer(
-            f"⚠️ Quyidagi qatorlar noto'g'ri formatda (qoldirildik):\n" +
-            "\n".join([f"  • {e}" for e in errors]),
-            parse_mode="HTML"
+            "❌ Birorta ham o'zgaruvchi nomi mos kelmadi. Har bir qatorni <b>nom: qiymat</b> ko'rinishida yozing.",
+            parse_mode="HTML",
         )
+        return
 
-    # Topilmagan o'zgaruvchilar
-    missing = [p for p in placeholders if p not in mapping]
-    if missing:
-        await message.answer(
-            "⚠️ Quyidagi o'zgaruvchilar uchun qiymat kiritilmadi (bo'sh qoladi):\n" +
-            "\n".join([f"  • <code>{{{{{m}}}}}</code>" for m in missing]),
-            parse_mode="HTML"
-        )
-
+    filled = {normalize_key(k) for k in values}
+    missing = [p for p in placeholders if normalize_key(p) not in filled]
+    job_dir = data["job_dir"]
+    stem = safe_filename(os.path.splitext(data["original_name"])[0], "hujjat")
+    out_path = os.path.join(job_dir, f"{stem}_tayyor.docx")
     msg = await message.answer("Shablon to'ldirilmoqda... ⏳")
-
-    output_path = f"temp/tayyor_{original_name}"
     try:
-        from docx import Document as DocxDoc
-        doc = DocxDoc(template_path)
-
-        # Paragraphlardagi placeholder'larni almashtirish
-        for para in doc.paragraphs:
-            for key, val in mapping.items():
-                placeholder = "{{" + key + "}}"
-                if placeholder in para.text:
-                    for run in para.runs:
-                        if placeholder in run.text:
-                            run.text = run.text.replace(placeholder, val)
-
-        # Jadval ichidagi placeholder'lar
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:
-                        for key, val in mapping.items():
-                            placeholder = "{{" + key + "}}"
-                            if placeholder in para.text:
-                                for run in para.runs:
-                                    if placeholder in run.text:
-                                        run.text = run.text.replace(placeholder, val)
-
-        doc.save(output_path)
-
-        result = FSInputFile(output_path, filename=f"tayyor_{original_name}")
+        await run_heavy(fill_template, data["template_path"], out_path, values)
+        notes = []
+        if missing:
+            notes.append("⚠️ To'ldirilmagan (o'zgarishsiz qoldi): " + ", ".join(html.escape(m) for m in missing))
+        if unknown:
+            notes.append("ℹ️ Shablonda yo'q nomlar (e'tiborsiz qoldirildi): " + ", ".join(html.escape(u) for u in unknown))
+        if bad_lines:
+            notes.append(f"ℹ️ «nom: qiymat» ko'rinishida bo'lmagan {len(bad_lines)} ta qator o'tkazib yuborildi.")
         await message.answer_document(
-            document=result,
-            caption=f"✅ Shablon muvaffaqiyatli to'ldirildi!"
+            FSInputFile(out_path),
+            caption="✅ Shablon to'ldirildi!" + ("\n\n" + "\n".join(notes) if notes else ""),
+            parse_mode="HTML",
         )
-    except Exception as e:
-        logging.error(f"Shablon to'ldirishda xato: {e}")
-        await message.answer("❌ Xatolik yuz berdi. Fayl formati noto'g'ri bo'lishi mumkin.")
-    finally:
-        for path in [template_path, output_path]:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except Exception:
-                    pass
         await msg.delete()
+    except Exception:
+        logging.exception("Shablon to'ldirishda xato")
+        await msg.edit_text("❌ Xatolik yuz berdi. Fayl formati noto'g'ri bo'lishi mumkin.")
+    finally:
+        remove(job_dir)
         await state.clear()
+
 
 # ──────────────────────────────────────────────
 # WORD FAYLNI O'QISH
 # ──────────────────────────────────────────────
+_SIGN_LINE = re.compile(r"imzo", re.IGNORECASE)
+
+
+def _read_text(path: str) -> tuple[str, bool]:
+    document = Document(path)
+    lines = [p.text for p in iter_all_paragraphs(document) if p.text.strip()]
+    has_sign_place = any(_SIGN_LINE.search(line) and ("__" in line or ":" in line) for line in lines)
+    return "\n".join(lines), has_sign_place
+
+
 @router.callback_query(F.data == "word_read")
-async def ask_read_file(callback, state: FSMContext):
+async def ask_read_file(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    await callback.message.answer(
-        "📎 O'qimoqchi bo'lgan <b>.docx</b> faylni yuboring:",
-        parse_mode="HTML"
-    )
+    await state.clear()
+    await callback.message.answer("📎 O'qimoqchi bo'lgan <b>.docx</b> faylni yuboring:", parse_mode="HTML")
     await state.set_state(WordToolsStates.waiting_for_read_file)
+
 
 @router.message(WordToolsStates.waiting_for_read_file, F.document)
 async def read_word_file(message: Message, state: FSMContext, bot: Bot):
-    doc_file = message.document
-    if not doc_file.file_name.endswith('.docx'):
-        await message.answer("Iltimos, faqat <b>.docx</b> formatidagi fayl yuboring.", parse_mode="HTML")
+    job_dir, path = await _download_docx(message, bot, "wordread")
+    if not path:
         return
-
-    os.makedirs("temp", exist_ok=True)
-    file_path = f"temp/read_{doc_file.file_id}.docx"
-    await bot.download(doc_file, destination=file_path)
-
     msg = await message.answer("Fayl o'qilmoqda... ⏳")
-
     try:
-        from docx import Document as DocxDoc
-        doc = DocxDoc(file_path)
-
-        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-        full_text = "\n".join(paragraphs)
-
+        full_text, has_sign_place = await run_heavy(_read_text, path)
         if not full_text:
             await msg.edit_text("⚠️ Fayl bo'sh yoki matn topilmadi.")
             return
+        # Matn foydalanuvchi faylidan — HTML sifatida emas, oddiy matn sifatida yuboriladi,
+        # shunda "A & B" yoki "<...>" kabi belgilar xabarni buzmaydi.
+        header = f"📄 {message.document.file_name}\n{'─' * 28}\n\n"
+        chunks, rest = [], header + full_text
+        while rest:
+            chunks.append(rest[:TELEGRAM_LIMIT])
+            rest = rest[TELEGRAM_LIMIT:]
+        await msg.edit_text(chunks[0])
+        for chunk in chunks[1:]:
+            await message.answer(chunk)
 
-        header = f"📄 <b>{doc_file.file_name}</b>\n{'─' * 28}\n\n"
-        # 4096 - header uzunligini chegiramiz
-        max_len = 4096 - len(header)
-
-        if len(full_text) <= max_len:
-            await msg.edit_text(header + full_text, parse_mode="HTML")
-        else:
-            await msg.edit_text(header + full_text[:max_len] + "\n\n<i>... (davomi quyida)</i>", parse_mode="HTML")
-            remaining = full_text[max_len:]
-            while remaining:
-                chunk = remaining[:4096]
-                remaining = remaining[4096:]
-                await message.answer(chunk)
-                
-        # Agar matnda Imzo joyi kabi narsalar bo'lsa, imzo qo'yish tugmasini chiqaramiz
-        if "imzo:" in full_text.lower() or "____" in full_text:
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            btn = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✍️ Hujjatga Imzo qo'yish", callback_data=f"sign_word:{doc_file.file_id}")]
-            ])
-            await message.answer("Ushbu hujjatda imzo qo'yish joyi mavjudligini aniqladim. Uni bot orqali imzolamoqchimisiz?", reply_markup=btn)
-
-
-    except Exception as e:
-        logging.error(f"Word faylni o'qishda xato: {e}")
+        if has_sign_place:
+            await state.update_data(sign_file_id=message.document.file_id, sign_name=message.document.file_name)
+            await message.answer(
+                "Ushbu hujjatda imzo joyi borligini aniqladim. Ism-familiyangizni imzo joyiga yozib beraymi?",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="✍️ Imzo joyiga ism yozish", callback_data="sign_word")
+                ]]),
+            )
+    except Exception:
+        logging.exception("Word faylni o'qishda xato")
         await msg.edit_text("❌ Xatolik yuz berdi. Fayl shikastlangan bo'lishi mumkin.")
     finally:
-        if os.path.exists(file_path):
-            try: os.remove(file_path)
-            except: pass
-        await state.clear()
+        remove(job_dir)
+        if await state.get_state() == WordToolsStates.waiting_for_read_file.state:
+            await state.set_state(None)
+
 
 # ──────────────────────────────────────────────
-# WORD FAYLGA IMZO QO'YISH
+# IMZO JOYIGA ISM-FAMILIYA YOZISH
 # ──────────────────────────────────────────────
-@router.callback_query(F.data.startswith("sign_word:"))
+def _sign_document(src: str, dst: str, signature: str) -> int:
+    """
+    Faqat "imzo" so'zi bor qatorlarda ishlaydi: birinchi ____ chizig'i o'rniga ismni yozadi
+    (chiziq bo'lmasa — qator oxiriga qo'shadi). Boshqa bo'sh joylar (sana va h.k.) o'zgarmaydi,
+    qatorning formatlashi saqlanadi.
+    """
+    document = Document(src)
+    signed = 0
+    for paragraph in iter_all_paragraphs(document):
+        if not _SIGN_LINE.search(paragraph.text):
+            continue
+        done = False
+        for run in paragraph.runs:
+            if "__" in run.text:
+                run.text = re.sub(r"_{2,}", signature, run.text, count=1)
+                done = True
+                break
+        if not done and paragraph.text.rstrip().endswith(":"):
+            paragraph.add_run(" " + signature)
+            done = True
+        signed += done
+    document.save(dst)
+    return signed
+
+
+@router.callback_query(F.data.in_({"sign_word"}) | F.data.startswith("sign_word:"))
 async def ask_for_signature(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    file_id = callback.data.split(":")[1]
-    await state.update_data(sign_file_id=file_id)
+    if ":" in callback.data:  # eski xabarlardagi tugmalar uchun
+        await state.update_data(sign_file_id=callback.data.split(":", 1)[1], sign_name="hujjat.docx")
+    if not (await state.get_data()).get("sign_file_id"):
+        await callback.message.answer("❌ Fayl topilmadi. Hujjatni qaytadan yuboring.")
+        return
     await callback.message.answer(
-        "✍️ Iltimos, hujjatga qo'yiladigan Ism-Familiyangizni (yoki matnli imzo) yuboring:\n\n"
-        "<i>(Masalan: Elshod Ibodullayev)</i>",
-        parse_mode="HTML"
+        "✍️ Hujjatga yoziladigan ism-familiyani yuboring:\n<i>(Masalan: Aliyev Vali)</i>",
+        parse_mode="HTML",
     )
     await state.set_state(WordToolsStates.waiting_for_signature)
 
+
 @router.message(WordToolsStates.waiting_for_signature, F.text)
 async def process_word_signature(message: Message, state: FSMContext, bot: Bot):
-    signature_text = message.text.strip()
+    signature = " ".join(message.text.split())[:100]
     data = await state.get_data()
     file_id = data.get("sign_file_id")
-    
     if not file_id:
         await message.answer("❌ Fayl topilmadi, iltimos boshqatdan urinib ko'ring.")
         await state.clear()
         return
 
-    os.makedirs("temp", exist_ok=True)
-    input_path = f"temp/to_sign_{file_id}.docx"
-    output_path = f"temp/signed_{file_id}.docx"
-    
+    job_dir = new_job_dir("wordsign")
+    in_path, out_path = os.path.join(job_dir, "input.docx"), os.path.join(job_dir, "imzolangan.docx")
     msg = await message.answer("Hujjat imzolanmoqda... ⏳")
-    
     try:
-        file = await bot.get_file(file_id)
-        await bot.download_file(file.file_path, destination=input_path)
-        
-        from docx import Document as DocxDoc
-        doc = DocxDoc(input_path)
-        
-        signature_added = False
-        
-        # Replace 'Imzo: _____' or just '_____' near 'Imzo'
-        for para in doc.paragraphs:
-            if "imzo:" in para.text.lower() or "____" in para.text:
-                # Oson almashtirish uchun shunchaki matn oxiriga yoki chiziqchalar o'rniga qo'yamiz
-                if "____" in para.text:
-                    para.text = para.text.replace("____", signature_text, 1) # faqata bittasini almashtirish
-                    # Qolgan chiziqlarni tozalash (agar uzun bo'lsa)
-                    import re
-                    para.text = re.sub(r'_+', '', para.text)
-                else:
-                    para.text = para.text + f" {signature_text}"
-                signature_added = True
-                
-        # Jadval ichida ham tekshiramiz
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for para in cell.paragraphs:
-                        if "imzo:" in para.text.lower() or "____" in para.text:
-                            if "____" in para.text:
-                                para.text = para.text.replace("____", signature_text, 1)
-                                import re
-                                para.text = re.sub(r'_+', '', para.text)
-                            else:
-                                para.text = para.text + f" {signature_text}"
-                            signature_added = True
-
-        doc.save(output_path)
-        
-        if signature_added:
-            result = FSInputFile(output_path, filename=f"Imzolangan_hujjat.docx")
+        await bot.download(file_id, destination=in_path)
+        signed = await run_heavy(_sign_document, in_path, out_path, signature)
+        if signed:
+            stem = safe_filename(os.path.splitext(data.get("sign_name") or "")[0], "hujjat")
             await message.answer_document(
-                document=result,
-                caption="✅ Hujjat muvaffaqiyatli imzolandi!"
+                FSInputFile(out_path, filename=f"{stem}_imzolangan.docx"),
+                caption=f"✅ Ism-familiya {signed} ta imzo joyiga yozildi.",
             )
+            await msg.delete()
         else:
-            await message.answer("⚠️ Hujjat ichidan 'Imzo' yoki chiziqchalar (____) topilmadi, shuning uchun o'zgarishsiz qoldi.")
-            
-    except Exception as e:
-        logging.error(f"Imzo qo'yishda xato: {e}")
-        await message.answer("❌ Xatolik yuz berdi.")
+            await msg.edit_text("⚠️ Hujjatda «Imzo: ____» ko'rinishidagi joy topilmadi, hujjat o'zgartirilmadi.")
+    except Exception:
+        logging.exception("Imzo qo'yishda xato")
+        await msg.edit_text("❌ Xatolik yuz berdi.")
     finally:
-        for path in [input_path, output_path]:
-            if os.path.exists(path):
-                try: os.remove(path)
-                except: pass
-        await msg.delete()
+        remove(job_dir)
         await state.clear()
-
-
-

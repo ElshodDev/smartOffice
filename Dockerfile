@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-rus \
     tesseract-ocr-uzb \
     poppler-utils \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Ishchi katalogni yaratish

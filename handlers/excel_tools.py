@@ -1,93 +1,103 @@
-import os
+"""✂️ Excelni qatorlarga qirqish: ko'rsatilgan oraliqdagi qatorlarni alohida faylga ajratadi."""
 import logging
-import pandas as pd
+import os
+import re
+
 from aiogram import Router, F, Bot
 from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
+from services.converter_service import run_heavy
+from services.excel_common import is_excel, size_error, read_table
+from services.tempfiles import new_job_dir, remove, safe_filename
+
 router = Router()
+
 
 class ExcelSplitterStates(StatesGroup):
     waiting_for_file = State()
     waiting_for_range = State()
 
+
 @router.message(F.text == "✂️ Excel qirqish")
 async def start_excel_split(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Iltimos, qirqmoqchi bo'lgan Excel (.xlsx yoki .xls) faylingizni yuboring.")
     await state.set_state(ExcelSplitterStates.waiting_for_file)
 
+
 @router.message(ExcelSplitterStates.waiting_for_file, F.document)
 async def process_excel_file(message: Message, state: FSMContext, bot: Bot):
-    document = message.document
-    if not (document.file_name.endswith('.xlsx') or document.file_name.endswith('.xls')):
+    doc = message.document
+    if not is_excel(doc.file_name):
         await message.answer("Iltimos, faqat .xlsx yoki .xls formatidagi fayl yuboring.")
         return
+    if error := size_error(doc.file_size):
+        await message.answer(error)
+        return
 
-    os.makedirs('temp', exist_ok=True)
-    file_path = f"temp/{document.file_id}_{document.file_name}"
-    
-    # Faylni yuklab olish
-    await bot.download(document, destination=file_path)
-    
-    await state.update_data(file_path=file_path, original_name=document.file_name)
-    await message.answer("Fayl qabul qilindi. Endi qirqib olinadigan qatorlar oraliqni kiriting (masalan: 1-50):")
+    remove((await state.get_data()).get("job_dir"))
+    job_dir = new_job_dir("xlcut")
+    file_path = os.path.join(job_dir, "input" + os.path.splitext(doc.file_name)[1].lower())
+    await bot.download(doc, destination=file_path)
+    try:
+        rows = len(await run_heavy(read_table, file_path))
+    except Exception:
+        logging.exception("Excel qirqish: faylni o'qib bo'lmadi")
+        remove(job_dir)
+        await message.answer("❌ Faylni o'qib bo'lmadi. Fayl buzilgan yoki format noto'g'ri bo'lishi mumkin.")
+        await state.clear()
+        return
+    if rows == 0:
+        remove(job_dir)
+        await message.answer("❌ Faylda ma'lumot qatorlari topilmadi.")
+        await state.clear()
+        return
+
+    await state.update_data(job_dir=job_dir, file_path=file_path, original_name=doc.file_name, rows=rows)
+    await message.answer(
+        f"Fayl qabul qilindi: <b>{rows}</b> ta ma'lumot qatori (sarlavhadan tashqari).\n\n"
+        "Qaysi qatorlarni qirqib olamiz? Oraliqni kiriting (masalan: <code>1-50</code>):",
+        parse_mode="HTML",
+    )
     await state.set_state(ExcelSplitterStates.waiting_for_range)
+
+
+def _cut(file_path: str, out_path: str, start: int, end: int) -> int:
+    df = read_table(file_path)
+    part = df.iloc[start - 1:end]
+    part.to_excel(out_path, index=False)
+    return len(part)
+
 
 @router.message(ExcelSplitterStates.waiting_for_range, F.text)
 async def process_excel_range(message: Message, state: FSMContext):
-    range_text = message.text.strip()
-    
-    try:
-        start_str, end_str = range_text.split('-')
-        start_row = int(start_str.strip())
-        end_row = int(end_str.strip())
-        
-        if start_row <= 0 or end_row < start_row:
-            raise ValueError
-    except ValueError:
-        await message.answer("Noto'g'ri format. Iltimos, diapazonni to'g'ri kiriting (masalan: 1-50):")
-        return
-    
     data = await state.get_data()
-    file_path = data['file_path']
-    original_name = data['original_name']
-    
+    rows = data.get("rows", 0)
+    match = re.fullmatch(r"\s*(\d+)\s*[-–—]\s*(\d+)\s*", message.text)
+    if not match or int(match.group(1)) < 1 or int(match.group(2)) < int(match.group(1)):
+        await message.answer("Noto'g'ri format. Oraliqni kiriting (masalan: <code>1-50</code>):", parse_mode="HTML")
+        return
+    start, end = int(match.group(1)), min(int(match.group(2)), rows)
+    if start > rows:
+        await message.answer(f"Faylda faqat {rows} ta qator bor. 1 dan {rows} gacha oraliq kiriting:")
+        return
+
+    job_dir = data["job_dir"]
+    stem = safe_filename(os.path.splitext(data["original_name"])[0], "jadval")
+    out_path = os.path.join(job_dir, f"{stem}_{start}-{end}.xlsx")
     msg = await message.answer("Fayl qirqilmoqda, kuting... ⏳")
-    
     try:
-        # Pandas orqali o'qish
-        df = pd.read_excel(file_path)
-        
-        # Qatorlarni qirqish (iloc 0-dan boshlanadi, foydalanuvchi kiritgan 1-qator -> index 0)
-        sliced_df = df.iloc[start_row - 1 : end_row]
-        
-        # Yangi fayl nomi va yo'li
-        output_file_name = f"qirqilgan_{start_row}_{end_row}_{original_name}"
-        output_file_path = f"temp/{output_file_name}"
-        
-        # Excelga yozish
-        sliced_df.to_excel(output_file_path, index=False)
-        
-        # Faylni yuborish
-        result_file = FSInputFile(output_file_path, filename=output_file_name)
+        count = await run_heavy(_cut, data["file_path"], out_path, start, end)
         await message.answer_document(
-            document=result_file, 
-            caption=f"Tayyor! {start_row} dan {end_row} gacha bo'lgan qatorlar qirqib olindi."
+            FSInputFile(out_path),
+            caption=f"✅ Tayyor! {start}–{end} qatorlar ({count} ta) qirqib olindi. Sarlavha qatori saqlandi.",
         )
-        
-        # Vaqtinchalik fayllarni o'chirish
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            if os.path.exists(output_file_path):
-                os.remove(output_file_path)
-        except Exception as e:
-            logging.error(f"Fayllarni o'chirishda xatolik yuz berdi: {e}")
-            
-    except Exception as e:
-        logging.error(f"Excelni qirqishda xato: {e}")
-        await message.answer("Xatolik yuz berdi. Fayl formati noto'g'ri yoki diapazon fayldagi qatorlar sonidan ko'p bo'lishi mumkin.")
-    finally:
         await msg.delete()
+    except Exception:
+        logging.exception("Excelni qirqishda xato")
+        await msg.edit_text("❌ Xatolik yuz berdi. Fayl formati noto'g'ri bo'lishi mumkin.")
+    finally:
+        remove(job_dir)
         await state.clear()

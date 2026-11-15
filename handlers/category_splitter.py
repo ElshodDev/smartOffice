@@ -1,19 +1,28 @@
+"""📑 Ustun qiymatlari bo'yicha alohida fayllarga bo'lish (masalan, har bir viloyat — alohida fayl)."""
+import logging
 import os
 import zipfile
-import logging
-import traceback
-import pandas as pd
+
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from config import ADMIN_ID
+
+from services.converter_service import run_heavy
+from services.excel_common import (
+    is_excel, size_error, read_table, column_keyboard,
+    too_many_columns_note, esc, unique_name,
+)
+from services.tempfiles import new_job_dir, remove, safe_filename
 
 router = Router()
 
+MAX_GROUPS = 200
+EMPTY_GROUP = "(bo'sh)"
+
 
 class CategorySplitterStates(StatesGroup):
-    waiting_for_excel  = State()
+    waiting_for_excel = State()
     waiting_for_column = State()
 
 
@@ -22,8 +31,8 @@ async def start_category_splitter(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "📑 <b>Toifa bo'yicha bo'lish</b>\n\n"
-        "Iltimos, bo'laklarga ajratmoqchi bo'lgan Excel (<b>.xlsx</b>) faylni yuboring.",
-        parse_mode="HTML"
+        "Iltimos, bo'laklarga ajratmoqchi bo'lgan Excel (<b>.xlsx</b> yoki <b>.xls</b>) faylni yuboring.",
+        parse_mode="HTML",
     )
     await state.set_state(CategorySplitterStates.waiting_for_excel)
 
@@ -31,155 +40,103 @@ async def start_category_splitter(message: Message, state: FSMContext):
 @router.message(CategorySplitterStates.waiting_for_excel, F.document)
 async def receive_excel(message: Message, state: FSMContext, bot: Bot):
     doc = message.document
-
-    if not doc.file_name.lower().endswith(".xlsx"):
-        await message.answer("❌ Iltimos, faqat <b>.xlsx</b> formatidagi Excel fayl yuboring.", parse_mode="HTML")
+    if not is_excel(doc.file_name):
+        await message.answer("❌ Iltimos, faqat <b>.xlsx</b> yoki <b>.xls</b> formatidagi Excel fayl yuboring.", parse_mode="HTML")
+        return
+    if error := size_error(doc.file_size):
+        await message.answer(error)
         return
 
-    os.makedirs("temp", exist_ok=True)
-    file_path = f"temp/cat_{doc.file_id}_{doc.file_name}"
-
+    remove((await state.get_data()).get("job_dir"))
+    job_dir = new_job_dir("xlcat")
+    file_path = os.path.join(job_dir, "input" + os.path.splitext(doc.file_name)[1].lower())
     await bot.download(doc, destination=file_path)
-
     try:
-        df = pd.read_excel(file_path)
-        if df.empty or len(df.columns) == 0:
-            await message.answer("❌ Fayl bo'sh yoki noto'g'ri formatda.")
-            await state.clear()
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            return
-
-        # Ustun nomlaridan Inline Keyboard yasash
-        buttons = []
-        for col in df.columns:
-            safe_col = str(col)[:64]          # Telegram callback_data limit
-            buttons.append(
-                [InlineKeyboardButton(text=str(col), callback_data=f"catcol:{safe_col}")]
-            )
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-        await state.update_data(file_path=file_path, original_name=doc.file_name)
-        await state.set_state(CategorySplitterStates.waiting_for_column)
-
-        await message.answer(
-            f"✅ Fayl qabul qilindi! (<b>{len(df)}</b> qator, <b>{len(df.columns)}</b> ustun)\n\n"
-            "📌 Qaysi <b>ustun</b> bo'yicha ajratmoqchisiz?",
-            parse_mode="HTML",
-            reply_markup=keyboard
-        )
-
-    except Exception as e:
-        logging.error(f"Category splitter — fayl o'qishda xato: {e}")
+        df = await run_heavy(read_table, file_path)
+    except Exception:
+        logging.exception("Category splitter — fayl o'qishda xato")
+        remove(job_dir)
         await message.answer("❌ Faylni o'qishda xatolik. Fayl buzilgan yoki format noto'g'ri bo'lishi mumkin.")
         await state.clear()
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        return
+    if df.empty or len(df.columns) == 0:
+        remove(job_dir)
+        await message.answer("❌ Fayl bo'sh yoki noto'g'ri formatda.")
+        await state.clear()
+        return
+
+    await state.update_data(job_dir=job_dir, file_path=file_path, original_name=doc.file_name)
+    await state.set_state(CategorySplitterStates.waiting_for_column)
+    await message.answer(
+        f"✅ Fayl qabul qilindi! (<b>{len(df)}</b> qator, <b>{len(df.columns)}</b> ustun)\n\n"
+        "📌 Qaysi <b>ustun</b> bo'yicha ajratmoqchisiz?" + too_many_columns_note(df.columns),
+        parse_mode="HTML",
+        reply_markup=column_keyboard(df.columns, "catcol"),
+    )
+
+
+def _split_by_column(file_path: str, job_dir: str, base_name: str, column_index: int):
+    df = read_table(file_path)
+    column = df.columns[column_index]
+    keys = df[column].astype(object).where(df[column].notna(), EMPTY_GROUP)
+    groups = list(df.groupby(keys, sort=False, dropna=False))  # sort=False: aralash turdagi qiymatlar ham ishlaydi
+    if len(groups) > MAX_GROUPS:
+        return None, column, len(groups), 0, len(df)
+
+    zip_path = os.path.join(job_dir, f"{base_name}_ustun_boyicha.zip")
+    used: set[str] = set()
+    empty_rows = int(df[column].isna().sum())
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for i, (category, group_df) in enumerate(groups):
+            part_path = os.path.join(job_dir, f"part_{i}.xlsx")
+            group_df.to_excel(part_path, index=False)
+            name = unique_name(f"{safe_filename(category, EMPTY_GROUP, 50)}.xlsx", used)
+            zipf.write(part_path, arcname=name)
+            os.remove(part_path)
+    return zip_path, column, len(groups), empty_rows, len(df)
 
 
 @router.callback_query(CategorySplitterStates.waiting_for_column, F.data.startswith("catcol:"))
-async def split_by_column(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def split_by_column(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-
-    selected_column = callback.data.removeprefix("catcol:")
     data = await state.get_data()
-    file_path    = data.get("file_path")
-    original_name = data.get("original_name", "result")
-    base_name    = os.path.splitext(original_name)[0]
-
+    job_dir, file_path = data.get("job_dir"), data.get("file_path")
     if not file_path or not os.path.exists(file_path):
         await callback.message.answer("❌ Fayl topilmadi. Iltimos, amalni boshidan boshlang.")
         await state.clear()
         return
-
-    msg = await callback.message.edit_text(
-        f"⏳ <b>«{selected_column}»</b> ustuni bo'yicha ajratilmoqda...",
-        parse_mode="HTML"
-    )
-
-    created_files = []
-    zip_path = f"temp/{base_name}_by_{selected_column}.zip"
-
     try:
-        df = pd.read_excel(file_path)
+        column_index = int(callback.data.split(":", 1)[1])
+    except ValueError:
+        return
+    await state.clear()
 
-        # Ustun mavjudligini tekshirish (foydalanuvchi yoki fayl o'zgargan bo'lsa)
-        if selected_column not in df.columns:
-            await msg.edit_text(f"❌ <b>«{selected_column}»</b> ustuni faylda topilmadi.", parse_mode="HTML")
-            await state.clear()
-            return
-
-        groups = list(df.groupby(selected_column))
-        total_groups = len(groups)
-
-        if total_groups == 0:
-            await msg.edit_text("❌ Tanlangan ustunda guruhlanadigan ma'lumot topilmadi.")
-            await state.clear()
-            return
-
-        # Har bir guruh uchun alohida .xlsx fayl yaratish
-        for category, group_df in groups:
-            # Fayl nomidan xavfli belgilarni tozalash
-            safe_cat = str(category).replace("/", "-").replace("\\", "-").replace(":", "-")[:50]
-            chunk_path = f"temp/{base_name}_{safe_cat}.xlsx"
-            group_df.to_excel(chunk_path, index=False)
-            created_files.append(chunk_path)
-
-        # Barcha fayllarni ZIP ga yig'ish
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for f in created_files:
-                zipf.write(f, arcname=os.path.basename(f))
-
-        # Natijani foydalanuvchiga yuborish
-        result_file = FSInputFile(
-            zip_path,
-            filename=f"{base_name}_by_{selected_column}.zip"
+    base_name = safe_filename(os.path.splitext(data.get("original_name", ""))[0], "jadval")
+    msg = await callback.message.edit_text("⏳ Ajratilmoqda...")
+    try:
+        zip_path, column, total_groups, empty_rows, total_rows = await run_heavy(
+            _split_by_column, file_path, job_dir, base_name, column_index
         )
+        if zip_path is None:
+            await msg.edit_text(
+                f"❌ «{esc(column)}» ustunida {total_groups} xil qiymat bor — bu {total_groups} ta fayl bo'ladi "
+                f"(ko'pi bilan {MAX_GROUPS}).\nTakrorlanadigan qiymatli ustunni tanlang (masalan, viloyat yoki bo'lim).",
+                parse_mode="HTML",
+            )
+            return
+        note = f"\n⚠️ «{EMPTY_GROUP}» fayliga ustuni bo'sh bo'lgan {empty_rows} ta qator tushdi." if empty_rows else ""
         await callback.message.answer_document(
-            document=result_file,
+            FSInputFile(zip_path),
             caption=(
                 f"✅ <b>Tayyor!</b>\n\n"
-                f"📊 Ustun: <b>{selected_column}</b>\n"
-                f"📁 Yaratilgan fayllar: <b>{total_groups} ta</b>\n\n"
-                f"Har bir toifa alohida Excel fayl sifatida ZIP ichida."
+                f"📊 Ustun: <b>{esc(column)}</b>\n"
+                f"📁 Yaratilgan fayllar: <b>{total_groups} ta</b> (jami {total_rows} qator){esc(note)}"
             ),
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await msg.delete()
-
-    except Exception as e:
-        err_trace = traceback.format_exc()
-        logging.error(f"Category splitter xatosi: {err_trace}")
-
-        await msg.edit_text(
-            "❌ Ajratish jarayonida xatolik yuz berdi. Fayl buzilgan yoki tuzilmasi noto'g'ri bo'lishi mumkin."
-        )
-
-        # Adminga xato haqida batafsil xabar
-        if ADMIN_ID:
-            try:
-                await bot.send_message(
-                    chat_id=int(ADMIN_ID),
-                    text=(
-                        f"⚠️ <b>Category Splitter xatosi</b>\n\n"
-                        f"👤 Foydalanuvchi: <code>{callback.from_user.id}</code>\n"
-                        f"📁 Fayl: {original_name}\n"
-                        f"📌 Ustun: {selected_column}\n\n"
-                        f"<code>{str(e)}</code>"
-                    ),
-                    parse_mode="HTML"
-                )
-            except Exception:
-                pass
-
+    except Exception:
+        logging.exception("Category splitter xatosi")
+        await msg.edit_text("❌ Ajratish jarayonida xatolik yuz berdi. Fayl tuzilmasi noto'g'ri bo'lishi mumkin.")
     finally:
-        # Avto-tozalash: barcha vaqtinchalik fayllarni o'chirish
-        for f in created_files + [file_path, zip_path]:
-            if f and os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception as ex:
-                    logging.warning(f"Faylni o'chirishda xato: {f} — {ex}")
-
-        await state.clear()
+        remove(job_dir)
