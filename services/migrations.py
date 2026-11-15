@@ -107,7 +107,23 @@ SECTIONS_TABLE_SQL = """
 """
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3, _migration_4)
+DAILY_ACTIVITY_SQL = """
+    CREATE TABLE IF NOT EXISTS daily_activity (
+        day TEXT NOT NULL,
+        user_id BIGINT NOT NULL,
+        PRIMARY KEY (day, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_joined ON users (joined_date);
+    CREATE INDEX IF NOT EXISTS idx_users_last_active ON users (last_active);
+"""
+
+
+async def _migration_5(db: aiosqlite.Connection) -> None:
+    """Kunlik faollik tarixi (Web ilovadagi grafiklar uchun)."""
+    await db.executescript(DAILY_ACTIVITY_SQL)
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3, _migration_4, _migration_5)
 
 
 async def apply_migrations(db: aiosqlite.Connection) -> None:
@@ -167,6 +183,7 @@ PG_MIGRATIONS: tuple[str, ...] = (
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned INTEGER DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_blocked INTEGER DEFAULT 0;
     """ + SECTIONS_TABLE_SQL,
+    DAILY_ACTIVITY_SQL,
 )
 
 

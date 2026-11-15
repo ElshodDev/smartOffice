@@ -50,7 +50,8 @@ class ImageEditorService:
 
     async def serve_form_editor(self, request: web.Request) -> web.Response:
         from services.alphabet import load_page
-        return web.Response(text=load_page("./webapp/editor.html"), content_type="text/html")
+        return web.Response(text=load_page("./webapp/editor.html"), content_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
 
     async def receive_edited_form(self, request: web.Request) -> web.Response:
         try:
@@ -83,7 +84,9 @@ class ImageEditorService:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
             pdf_buffer = io.BytesIO()
-            image.save(pdf_buffer, format="PDF", resolution=150)
+            # Sahifa A4 (210×297 mm) ga sig'adigan qilib: rasm qancha katta bo'lsa, dpi shuncha yuqori
+            dpi = max(72.0, image.width / 8.27, image.height / 11.69)
+            image.save(pdf_buffer, format="PDF", resolution=dpi)
             pdf_buffer.seek(0)
 
             from aiogram.types import BufferedInputFile
@@ -99,11 +102,11 @@ class ImageEditorService:
                 chat_id=authenticated_user_id,
                 document=BufferedInputFile(
                     pdf_buffer.read(),
-                    filename=f"ariza_tayyor_{original_filename}.pdf",
+                    filename="blanka_tayyor.pdf",
                 ),
                 caption=(
-                    "✅ <b>Ariza muvaffaqiyatli to'ldirildi!</b>\n\n"
-                    "📎 Tayyor ariza PDF formatida yuqorida.\n"
+                    "✅ <b>Hujjat tayyor!</b>\n\n"
+                    "📎 Matn va imzo qo'yilgan blanka PDF shaklida yuqorida.\n"
                     "<i>Uni printerda chop etishingiz yoki elektron jo'natishingiz mumkin.</i>"
                 ),
                 parse_mode="HTML",

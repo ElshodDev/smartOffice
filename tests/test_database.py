@@ -89,6 +89,25 @@ class _DatabaseContract:
         self.assertEqual((await database.find_users("3"))[0]["name"], "Yangi odam")
         self.assertEqual(len(await database.export_users()), 3)
 
+    async def test_webapp_queries(self):
+        await database.add_user(1, "Ali", None)
+        await database.touch_users([(1, "Ali", "2026-11-14 09:00:00"), (2, "Vali", "2026-11-15 10:00:00")])
+        await database.touch_users([(1, "Ali", "2026-11-15 12:00:00")])
+        series = await database.daily_series("2026-11-14")
+        self.assertEqual(series["2026-11-14"]["active"], 1)
+        self.assertEqual(series["2026-11-15"]["active"], 2)
+        self.assertEqual(sum(p["new"] for p in series.values()), 2)
+        # Ali ilgari qo'shilgan va bugun yana kirdi (qo'shilgan sanasi — bugun; shuning uchun 0 yoki 1)
+        self.assertIn(await database.returning_users("2026-11-15 00:00:00"), (0, 1))
+        total, users = await database.list_users(sort="active")
+        self.assertEqual((total, [u["id"] for u in users]), (2, [1, 2]))
+        total, users = await database.list_users(query="val")
+        self.assertEqual((total, users[0]["name"]), (1, "Vali"))
+        total, users = await database.list_users(query="2")
+        self.assertEqual([u["id"] for u in users], [2])
+        total, users = await database.list_users(limit=1, offset=1, sort="joined")
+        self.assertEqual((total, len(users)), (2, 1))
+
     async def test_migrations_are_idempotent(self):
         await database.create_table()
         await database.create_table()
@@ -119,7 +138,7 @@ class PostgresDatabaseTests(_DatabaseContract, unittest.IsolatedAsyncioTestCase)
         self._env.start()
         db._pg_backend = None
         backend = database._db()
-        for table in ("users", "reminders", "form_sessions", "user_sections", "schema_migrations"):
+        for table in ("users", "reminders", "form_sessions", "user_sections", "daily_activity", "schema_migrations"):
             await backend.execute(f"DROP TABLE IF EXISTS {table}")
         await database.create_table()
 

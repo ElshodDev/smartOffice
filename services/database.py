@@ -197,6 +197,10 @@ async def touch_users(rows: list[tuple[int, str, str]]) -> None:
         "full_name = excluded.full_name, bot_blocked = 0",
         [(uid, name, now, now) for uid, name, now in rows],
     )
+    await _db().executemany(
+        "INSERT INTO daily_activity (day, user_id) VALUES (?, ?) ON CONFLICT (day, user_id) DO NOTHING",
+        [(now[:10], uid) for uid, _, now in rows],
+    )
 
 
 async def add_section_uses(rows: list[tuple[int, str, int, str]]) -> None:
@@ -323,3 +327,47 @@ async def find_users(query: str, limit: int = 10) -> list[dict]:
 async def export_users() -> list[dict]:
     rows = await _db().fetchall(f"SELECT {_USER_COLUMNS} FROM users ORDER BY id")
     return [_user_row(r) for r in rows]
+
+
+# ── Web ilova (admin paneli) ────────────────────────────────────────────────
+async def daily_series(since_day: str) -> dict[str, dict[str, int]]:
+    """{"YYYY-MM-DD": {"new": N, "active": M}} — since_day dan bugungacha (bo'sh kunlar yo'q)."""
+    series: dict[str, dict[str, int]] = {}
+    for day, n in await _db().fetchall(
+        "SELECT substr(joined_date, 1, 10) AS d, COUNT(*) FROM users WHERE joined_date >= ? GROUP BY d", since_day
+    ):
+        series.setdefault(str(day), {"new": 0, "active": 0})["new"] = int(n)
+    for day, n in await _db().fetchall(
+        "SELECT day, COUNT(*) FROM daily_activity WHERE day >= ? GROUP BY day", since_day
+    ):
+        series.setdefault(str(day), {"new": 0, "active": 0})["active"] = int(n)
+    return series
+
+
+async def returning_users(since: str) -> int:
+    """`since` dan oldin qo'shilib, shu davrda yana faol bo'lganlar (qaytib kelganlar)."""
+    return await _count("SELECT COUNT(*) FROM users WHERE last_active >= ? AND joined_date < ?", since, since)
+
+
+_USER_SORTS = {
+    "active": "COALESCE(last_active, '') DESC",
+    "joined": "id DESC",
+    "usage": "COALESCE(usage_count, 0) DESC",
+}
+
+
+async def list_users(query: str = "", sort: str = "active", limit: int = 50, offset: int = 0) -> tuple[int, list[dict]]:
+    order = _USER_SORTS.get(sort, _USER_SORTS["active"])
+    query = query.strip().lstrip("@")
+    if query.isdigit():
+        where, args = "WHERE CAST(telegram_id AS TEXT) LIKE ?", (f"{query}%",)
+    elif query:
+        where, args = "WHERE LOWER(full_name) LIKE ?", (f"%{query.lower()}%",)
+    else:
+        where, args = "", ()
+    total = await _count(f"SELECT COUNT(*) FROM users {where}", *args)
+    rows = await _db().fetchall(
+        f"SELECT {_USER_COLUMNS} FROM users {where} ORDER BY {order}, id DESC LIMIT ? OFFSET ?",
+        *args, max(1, min(limit, 200)), max(0, offset),
+    )
+    return total, [_user_row(r) for r in rows]

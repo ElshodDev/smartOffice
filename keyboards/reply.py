@@ -3,7 +3,7 @@ from aiogram.types.web_app_info import WebAppInfo
 from config import RENDER_URL
 
 def get_main_menu() -> ReplyKeyboardMarkup:
-    web_app_url = f"{RENDER_URL.rstrip('/')}/?v=4"
+    web_app_url = f"{RENDER_URL.rstrip('/')}/?v=5"
 
     keyboard = [
         [

@@ -145,3 +145,17 @@ async def redirect_to_settings(callback: CallbackQuery, state: FSMContext, bot):
     await callback.answer()
     text = await build_settings_text(bot, callback.from_user)
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=get_settings_menu())
+
+
+# ── Web ilova: bo'limlar xaritasidan tanlangan bo'lim (tg.sendData("go:KALIT")) ──
+@router.message(F.web_app_data)
+async def web_app_open_section(message: Message, state: FSMContext):
+    from handlers.ai_assistant import send_section
+    data = (message.web_app_data.data or "").strip()
+    if data.startswith("go:"):
+        key = data[3:]
+        await state.clear()
+        if await send_section(message, key):
+            activity.record_section(message.from_user.id, key)
+            return
+    await message.answer("🤷 Bu so'rovni tushunmadim. Bosh menyudan kerakli bo'limni tanlang.")

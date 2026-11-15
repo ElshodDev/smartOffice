@@ -5,233 +5,474 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Office</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0d1117;
-            --card: #161b22;
-            --card2: #1c2333;
-            --border: rgba(255,255,255,0.08);
-            --primary: #3b82f6;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --text: #e6edf3;
-            --muted: #8b949e;
-            --radius: 14px;
+            --bg: #0d1117; --card: #161b22; --card2: #1c2333; --border: rgba(255,255,255,0.08);
+            --primary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; --violet: #8b5cf6;
+            --text: #e6edf3; --muted: #8b949e; --radius: 14px;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         body { background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 32px; }
-
-        #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 14px; }
-        .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        button { font: inherit; }
+        .hidden { display: none !important; }
+        #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 14px; color: var(--muted); font-size: 13px; }
+        .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        .view { animation: fadeUp .35s ease; }
 
-        #user-view, #admin-view { display: none; animation: fadeUp 0.4s ease; }
+        /* Yorliqlar (faqat admin uchun) */
+        .tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; padding: 10px 12px; background: rgba(13,17,23,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+        .tab { flex: 1; padding: 9px 6px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; }
+        .tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
-        .profile-hero { background: linear-gradient(160deg, #1a2744 0%, #0d1117 60%); padding: 32px 20px 24px; text-align: center; border-bottom: 1px solid var(--border); }
-        .avatar { width: 76px; height: 76px; border-radius: 50%; margin: 0 auto 14px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: #fff; box-shadow: 0 0 0 4px rgba(59,130,246,0.15); }
-        .profile-hero h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-        .profile-hero p { font-size: 12px; color: var(--muted); }
+        .hero { background: linear-gradient(160deg, #1a2744 0%, #0d1117 70%); padding: 26px 20px 20px; text-align: center; border-bottom: 1px solid var(--border); }
+        .avatar { width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: #fff; box-shadow: 0 0 0 4px rgba(59,130,246,.15); }
+        .hero h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; word-break: break-word; }
+        .hero p { font-size: 12px; color: var(--muted); }
+        .level { margin: 14px auto 0; max-width: 320px; text-align: left; }
+        .level-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        .level-top b { color: var(--text); font-size: 14px; white-space: nowrap; flex-shrink: 0; }
+        .level-top span { text-align: right; }
+        .bar { height: 8px; background: var(--card2); border-radius: 6px; overflow: hidden; }
+        .bar > div { height: 100%; background: linear-gradient(90deg, var(--primary), var(--violet)); border-radius: 6px; transition: width .6s; }
 
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
-        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
-        .stat-card .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-        .stat-card .value { font-size: 22px; font-weight: 700; }
-        .stat-card .value.blue { color: var(--primary); }
-        .stat-card .value.green { color: var(--success); }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px 0; }
+        .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 14px 16px 0; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; }
+        .card .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+        .card .value { font-size: 22px; font-weight: 700; }
+        .card .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .blue { color: var(--primary); } .green { color: var(--success); } .orange { color: var(--warning); } .violet { color: var(--violet); } .red { color: var(--danger); }
+        .title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 20px 16px 10px; }
+        .hint { font-size: 12px; color: var(--muted); padding: 0 16px 10px; margin-top: -4px; }
 
-        .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 16px; margin: 4px 0 10px; }
+        /* Bo'limlar xaritasi */
+        .map { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; }
+        .tile { position: relative; text-align: left; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; color: var(--text); cursor: pointer; min-height: 92px; }
+        .tile:active { transform: scale(.98); }
+        .tile .t { font-size: 14px; font-weight: 600; margin-bottom: 4px; padding-right: 18px; }
+        .tile .d { font-size: 11px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .tile .badge { position: absolute; top: 10px; right: 10px; font-size: 12px; }
+        .tile.new { border-color: rgba(245,158,11,.45); background: linear-gradient(160deg, rgba(245,158,11,.10), var(--card) 60%); }
+        .tile.new { padding-bottom: 30px; }
+        .tile.new .badge { font-size: 11px; font-weight: 700; color: var(--warning); top: auto; bottom: 9px; right: auto; left: 12px; }
 
-        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; }
-        .feat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; }
-        .feat-card .icon { font-size: 20px; }
+        .invite { margin: 0 16px; }
+        .invite code { display: block; margin: 8px 0 12px; padding: 10px; background: var(--card2); border-radius: 10px; font-size: 12px; word-break: break-all; color: var(--text); }
+        .row { display: flex; gap: 8px; }
+        .btn { flex: 1; border: none; border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: var(--primary); }
+        .btn.ghost { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+        .btn-wide { display: block; width: calc(100% - 32px); margin: 20px 16px 0; }
 
-        .btn-primary { display: block; width: calc(100% - 32px); margin: 20px 16px 0; background: var(--primary); color: #fff; border: none; border-radius: var(--radius); padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer; text-align: center; }
-
-        .admin-header { background: linear-gradient(160deg, #0d2137 0%, #0d1117 60%); padding: 28px 20px 20px; border-bottom: 1px solid var(--border); }
-        .admin-header .title { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
-        .admin-header .count { font-size: 38px; font-weight: 800; letter-spacing: -1px; }
-        .admin-header .today-badge { display: inline-block; background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.25); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; margin-top: 6px; }
-
-        .search-wrap { padding: 12px 16px; }
-        .search-wrap input { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; }
-        .search-wrap input::placeholder { color: var(--muted); }
-        .search-wrap input:focus { border-color: var(--primary); }
-
-        #users-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
-        .u-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
-        .u-idx { font-size: 12px; color: var(--muted); min-width: 20px; text-align: center; }
-        .u-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+        /* Admin */
+        .chart { margin: 0 16px; padding: 14px 12px 8px; }
+        .chart svg { width: 100%; height: 150px; display: block; }
+        .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 6px; padding-left: 4px; }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+        .hbar { margin: 0 16px 8px; }
+        .hbar .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+        .hbar .top span { color: var(--muted); font-size: 12px; }
+        .list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+        .controls { display: flex; gap: 8px; padding: 12px 16px; }
+        .controls input, .controls select { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 14px; outline: none; }
+        .controls input { flex: 1; min-width: 0; }
+        .controls input:focus { border-color: var(--primary); }
+        .u-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 13px; display: flex; gap: 11px; align-items: center; }
+        .u-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; color: #fff; }
         .u-info { flex: 1; min-width: 0; }
         .u-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .u-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; align-items: center; }
-        .u-meta span { font-size: 11px; color: var(--muted); }
-        .usage-pill { background: rgba(59,130,246,0.12); color: var(--primary); border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
-        .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+        .u-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 11px; color: var(--muted); }
+        .pill { border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+        .pill.blue { background: rgba(59,130,246,.14); } .pill.red { background: rgba(239,68,68,.14); } .pill.orange { background: rgba(245,158,11,.14); }
+        .empty { text-align: center; padding: 30px 20px; color: var(--muted); font-size: 14px; }
+        .footer { text-align: center; font-size: 11px; color: var(--muted); padding: 16px; }
     </style>
 </head>
 <body>
 
-<div id="loading">
-    <div class="spinner"></div>
-    <p style="color:#8b949e;font-size:13px">Yuklanmoqda...</p>
+<!-- Sahifadagi barcha matnlar (server ularni bot yozuviga — yangi lotinga — o'giradi) -->
+<template id="msgs">
+    <span data-k="loading">Yuklanmoqda...</span>
+    <span data-k="user">Foydalanuvchi</span>
+    <span data-k="joined">{d} dan beri botda</span>
+    <span data-k="notRegistered">Botdan to'liq foydalanish uchun botga /start yozing</span>
+    <span data-k="openInTelegram">Bu sahifa Telegram ichida ochilishi kerak. Botdagi «🌐 Web Ilova» tugmasini bosing.</span>
+    <span data-k="error">Ma'lumotni yuklab bo'lmadi. Internetni tekshirib, qaytadan oching.</span>
+    <span data-k="toNext">Keyingi daraja ({l}) uchun yana {n} ta amal</span>
+    <span data-k="maxLevel">Eng yuqori daraja! 🎉</span>
+    <span data-k="uses">Bajarilgan amallar</span>
+    <span data-k="days">Botda (kun)</span>
+    <span data-k="tried">Sinab ko'rilgan bo'limlar</span>
+    <span data-k="friends">Taklif qilgan do'stlar</span>
+    <span data-k="reminders">Faol eslatmalar</span>
+    <span data-k="aiLeft">Bugungi AI so'rovlari</span>
+    <span data-k="favourite">⭐️ Eng ko'p ishlatganingiz: {s}</span>
+    <span data-k="mapTitle">Bot bo'limlari</span>
+    <span data-k="mapHint">Bo'limni bosing — bot chatda o'sha bo'limni ochadi. ✨ belgilisi — hali sinab ko'rmaganlaringiz.</span>
+    <span data-k="tryIt">✨ Sinab ko'ring</span>
+    <span data-k="inviteTitle">Do'stlarni taklif qiling</span>
+    <span data-k="inviteText">Havolangiz orqali qo'shilgan har bir do'stingiz shu yerda hisoblanadi. Hozircha: {n} ta.</span>
+    <span data-k="share">🚀 Yuborish</span>
+    <span data-k="copy">📋 Nusxalash</span>
+    <span data-k="copied">✅ Nusxalandi</span>
+    <span data-k="inviteMsg">Ofis ishlari uchun qulay bot: Excel, PDF, Word, skaner, ariza va hujjatlar tayyorlash 👇</span>
+    <span data-k="back">← Botga qaytish</span>
+    <span data-k="tabStats">📊 Statistika</span>
+    <span data-k="tabUsers">👥 Foydalanuvchilar</span>
+    <span data-k="tabMe">👤 Men</span>
+    <span data-k="total">Jami foydalanuvchilar</span>
+    <span data-k="newToday">Bugun qo'shildi</span>
+    <span data-k="activeToday">Bugun faol</span>
+    <span data-k="newWeek">7 kunda yangi</span>
+    <span data-k="activeWeek">7 kunda faol</span>
+    <span data-k="activeMonth">30 kunda faol</span>
+    <span data-k="returning">Qaytib kelganlar (7 kun)</span>
+    <span data-k="returningSub">ilgari qo'shilib, shu hafta yana kirganlar</span>
+    <span data-k="referred">Taklif orqali kelgan</span>
+    <span data-k="blocked">Botni bloklagan</span>
+    <span data-k="aiToday">Bugun AI so'rovlari</span>
+    <span data-k="aiPeople">{n} kishi</span>
+    <span data-k="remindersAll">Faol eslatmalar</span>
+    <span data-k="chartTitle">So'nggi 30 kun</span>
+    <span data-k="legendActive">Faol foydalanuvchilar</span>
+    <span data-k="legendNew">Yangi qo'shilganlar</span>
+    <span data-k="sectionsTitle">Mashhur bo'limlar (7 kun)</span>
+    <span data-k="sectionLine">{u} kishi · {n} marta</span>
+    <span data-k="referrersTitle">Eng faol taklif qiluvchilar</span>
+    <span data-k="noData">Hali ma'lumot yo'q</span>
+    <span data-k="updated">Yangilangan: {t}</span>
+    <span data-k="search">🔍 Ism yoki ID bo'yicha qidirish</span>
+    <span data-k="sortActive">Oxirgi faollik</span>
+    <span data-k="sortJoined">Yangi qo'shilgan</span>
+    <span data-k="sortUsage">Ko'p ishlatgan</span>
+    <span data-k="found">Topildi: {n} ta</span>
+    <span data-k="nothing">😕 Hech kim topilmadi</span>
+    <span data-k="more">Yana yuklash</span>
+    <span data-k="noName">Ismsiz</span>
+    <span data-k="lastSeen">🕐 {t}</span>
+    <span data-k="joinedShort">📅 {d}</span>
+    <span data-k="usesShort">🛠 {n}</span>
+    <span data-k="pillBlocked">bloklagan</span>
+    <span data-k="pillBanned">cheklangan</span>
+    <span data-k="now">hozirgina</span>
+    <span data-k="minAgo">{n} daqiqa oldin</span>
+    <span data-k="hourAgo">{n} soat oldin</span>
+    <span data-k="yesterday">kecha</span>
+    <span data-k="dayAgo">{n} kun oldin</span>
+    <span data-k="never">hali kirmagan</span>
+</template>
+
+<div id="loading"><div class="spinner"></div><p id="loading-text">Yuklanmoqda...</p></div>
+
+<div id="tabs" class="tabs hidden">
+    <button class="tab active" data-tab="stats"></button>
+    <button class="tab" data-tab="users"></button>
+    <button class="tab" data-tab="me"></button>
 </div>
 
-<div id="user-view">
-    <div class="profile-hero">
-        <div class="avatar" id="u-avatar">??</div>
-        <h2 id="u-name">Foydalanuvchi</h2>
-        <p id="u-joined">Yuklanmoqda...</p>
+<!-- 👤 Foydalanuvchi -->
+<div id="view-me" class="view hidden">
+    <div class="hero">
+        <div class="avatar" id="u-avatar">?</div>
+        <h2 id="u-name"></h2>
+        <p id="u-joined"></p>
+        <div class="level" id="u-level-box">
+            <div class="level-top"><b id="u-level"></b><span id="u-next"></span></div>
+            <div class="bar"><div id="u-bar" style="width:0"></div></div>
+        </div>
     </div>
-    <div style="padding: 16px 16px 0;"><div class="section-title">Statistikangiz</div></div>
-    <div class="stats-grid">
-        <div class="stat-card"><div class="label">Foydalanish</div><div class="value blue" id="s-usage">0</div></div>
-        <div class="stat-card"><div class="label">Kun (botda)</div><div class="value" id="s-days">0</div></div>
-        <div class="stat-card"><div class="label">Daraja</div><div class="value green" id="s-level" style="font-size:16px">🌱 Yangi</div></div>
-        <div class="stat-card"><div class="label">Keyingi darajaga</div><div class="value" id="s-next" style="font-size:16px">5 ta</div></div>
+    <div class="grid2" id="u-stats"></div>
+    <p class="hint" id="u-fav" style="padding-top:12px"></p>
+    <div class="title" id="t-map"></div>
+    <p class="hint" id="t-map-hint"></p>
+    <div class="map" id="u-map"></div>
+    <div class="title" id="t-invite"></div>
+    <div class="card invite">
+        <div class="hint" style="padding:0" id="u-invite-text"></div>
+        <code id="u-link"></code>
+        <div class="row">
+            <button class="btn" id="btn-share"></button>
+            <button class="btn ghost" id="btn-copy"></button>
+        </div>
     </div>
-    <div style="padding: 16px 16px 0;"><div class="section-title">Bot imkoniyatlari</div></div>
-    <div class="features-grid">
-        <div class="feat-card"><span class="icon">📁</span> Hujjatlar</div>
-        <div class="feat-card"><span class="icon">🔄</span> Konvertor</div>
-        <div class="feat-card"><span class="icon">🤖</span> AI Yordam</div>
-        <div class="feat-card"><span class="icon">📋</span> Obyektivka</div>
-    </div>
-    <button class="btn-primary" onclick="tg.close()">← Botga qaytish</button>
+    <button class="btn btn-wide ghost" id="btn-back"></button>
 </div>
 
-<div id="admin-view">
-    <div class="admin-header">
-        <div class="title">Jami foydalanuvchilar</div>
-        <div class="count" id="total-count">—</div>
-        <div class="today-badge" id="today-badge">+0 bugun</div>
+<!-- 📊 Admin: statistika -->
+<div id="view-stats" class="view hidden">
+    <div class="grid2" id="a-kpi"></div>
+    <div class="title" id="t-chart"></div>
+    <div class="card chart">
+        <svg id="a-chart" viewBox="0 0 300 150" preserveAspectRatio="none"></svg>
+        <div class="legend"><span><i style="background:var(--primary)"></i><span id="lg-active"></span></span>
+            <span><i style="background:var(--success)"></i><span id="lg-new"></span></span></div>
     </div>
-    <div class="search-wrap">
-        <input type="text" id="search-input" placeholder="🔍  Ism yoki ID bo'yicha izlash..." oninput="filterUsers()">
+    <div class="title" id="t-sections"></div>
+    <div id="a-sections"></div>
+    <div class="title" id="t-referrers"></div>
+    <div class="list" id="a-referrers"></div>
+    <div class="footer" id="a-updated"></div>
+</div>
+
+<!-- 👥 Admin: foydalanuvchilar -->
+<div id="view-users" class="view hidden">
+    <div class="controls">
+        <input type="search" id="q" autocomplete="off">
+        <select id="sort"><option value="active"></option><option value="joined"></option><option value="usage"></option></select>
     </div>
-    <div id="users-list"></div>
+    <p class="hint" id="found"></p>
+    <div class="list" id="users"></div>
+    <button class="btn btn-wide ghost hidden" id="btn-more"></button>
 </div>
 
 <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-    try { tg.setHeaderColor('#0d1117'); } catch(e) {}
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#0d1117'); tg.setBackgroundColor('#0d1117'); } catch (e) {} }
 
-    let allUsers = [];
-    const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
+// ── Yordamchilar ──
+function T(key, vars) {
+    const el = document.querySelector('#msgs').content.querySelector('[data-k="' + key + '"]');
+    let s = el ? el.textContent : key;
+    for (const k in (vars || {})) s = s.split('{' + k + '}').join(vars[k]);
+    return s;
+}
+function $(id) { return document.getElementById(id); }
+function h(tag, cls, text) {               // Matn faqat textContent orqali — HTML/XSS xavfi yo'q
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined && text !== null) el.textContent = String(text);
+    return el;
+}
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
+function color(id) { return COLORS[Math.abs(Number(id) || 0) % COLORS.length]; }
+function initials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    return (parts.map(function (w) { return Array.from(w)[0] || ''; }).join('').toUpperCase().slice(0, 2)) || '?';
+}
+function parseDate(s) { const d = s ? new Date(s) : null; return d && !isNaN(d) ? d : null; }
+function fmtDate(s) {
+    const d = parseDate(s); if (!d) return '—';
+    return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+}
+function ago(s) {
+    const d = parseDate(s); if (!d) return T('never');
+    const min = Math.floor((Date.now() - d) / 60000);
+    if (min < 2) return T('now');
+    if (min < 60) return T('minAgo', {n: min});
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return T('hourAgo', {n: hours});
+    const days = Math.floor(hours / 24);
+    return days === 1 ? T('yesterday') : T('dayAgo', {n: days});
+}
+async function api(path) {
+    const res = await fetch(path, {headers: {'X-Telegram-Init-Data': tg ? tg.initData : ''}});
+    if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+    return res.json();
+}
+function statCard(label, value, cls, sub) {
+    const c = h('div', 'card');
+    c.appendChild(h('div', 'label', label));
+    c.appendChild(h('div', 'value ' + (cls || ''), value));
+    if (sub) c.appendChild(h('div', 'sub', sub));
+    return c;
+}
+function showError(text) {
+    $('loading').innerHTML = '';
+    $('loading').appendChild(h('p', '', text));
+}
+function openSection(key, botUsername) {
+    // «🌐 Web Ilova» tugmasidan ochilgan bo'lsa — sendData (ilova yopiladi, bot bo'limni ochadi);
+    // boshqa joydan ochilgan bo'lsa — /start go_KALIT havolasi
+    const fromKeyboard = tg && !(tg.initDataUnsafe && tg.initDataUnsafe.query_id);
+    if (fromKeyboard) { try { tg.sendData('go:' + key); return; } catch (e) {} }
+    tg.openTelegramLink('https://t.me/' + botUsername + '?start=go_' + key);
+    tg.close();
+}
 
-    function initials(name) {
-        if (!name) return '?';
-        return name.split(' ').map(w => w[0] || '').join('').toUpperCase().slice(0, 2);
-    }
-    function aColor(id) { return COLORS[Math.abs(id || 0) % COLORS.length]; }
+// ── 👤 Profil ──
+function renderMe(me) {
+    const tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user;
+    const name = me.name || (tgUser && tgUser.first_name) || T('user');
+    $('u-avatar').textContent = initials(name);
+    $('u-avatar').style.background = 'linear-gradient(135deg,' + color(tgUser && tgUser.id) + ',#1d4ed8)';
+    $('u-name').textContent = name;
+    $('u-joined').textContent = me.registered ? T('joined', {d: fmtDate(me.joined)}) : T('notRegistered');
+    $('u-level').textContent = me.level.label;
+    $('u-next').textContent = me.level.next_label ? T('toNext', {l: me.level.next_label, n: me.level.to_next}) : T('maxLevel');
+    setTimeout(function () { $('u-bar').style.width = me.level.progress + '%'; }, 50);
 
-    function relDate(str) {
-        if (!str) return '—';
-        const diff = Math.floor((Date.now() - new Date(str)) / 60000);
-        if (diff < 1) return 'Hozirgina';
-        if (diff < 60) return diff + ' daq oldin';
-        const h = Math.floor(diff / 60);
-        if (h < 24) return h + ' soat oldin';
-        const d = Math.floor(h / 24);
-        if (d === 1) return 'Kecha';
-        if (d < 30) return d + ' kun oldin';
-        return Math.floor(d / 30) + ' oy oldin';
-    }
+    const joined = parseDate(me.joined);
+    const days = joined ? Math.max(1, Math.ceil((Date.now() - joined) / 86400000)) : 0;
+    const stats = $('u-stats'); stats.innerHTML = '';
+    stats.appendChild(statCard(T('uses'), me.uses, 'blue'));
+    stats.appendChild(statCard(T('days'), days, ''));
+    stats.appendChild(statCard(T('tried'), me.tried + ' / ' + me.sections.length, 'green'));
+    stats.appendChild(statCard(T('friends'), me.referrals, 'violet'));
+    stats.appendChild(statCard(T('reminders'), me.reminders, 'orange'));
+    if (me.ai_left !== null && me.ai_left !== undefined)
+        stats.appendChild(statCard(T('aiLeft'), Math.min(me.ai_left, me.ai_limit) + ' / ' + me.ai_limit, ''));
+    $('u-fav').textContent = me.favourite ? T('favourite', {s: me.favourite}) : '';
 
-    function fullDate(str) {
-        if (!str) return "Ma'lumot yo'q";
-        try {
-            return new Date(str).toLocaleDateString('uz-UZ', {day:'2-digit', month:'long', year:'numeric'}) + " da qo'shilgan";
-        } catch { return str; }
-    }
-
-    function getLevel(n) {
-        if (n >= 100) return { label: '💎 Pro', next: '✅ Max' };
-        if (n >= 50)  return { label: '🥇 Expert', next: (100-n) + ' ta' };
-        if (n >= 20)  return { label: '🥈 Faol', next: (50-n) + ' ta' };
-        if (n >= 5)   return { label: "🥉 O'rta", next: (20-n) + ' ta' };
-        return { label: '🌱 Yangi', next: (5-n) + ' ta' };
-    }
-
-    function renderUserView(profile, tgUser) {
-        const name = tgUser && tgUser.first_name ? tgUser.first_name : (profile.name || 'Foydalanuvchi');
-        const usage = profile.usage_count || 0;
-        const days = profile.joined_date ? Math.max(1, Math.floor((Date.now()-new Date(profile.joined_date))/86400000)) : 0;
-        const lv = getLevel(usage);
-        document.getElementById('u-avatar').textContent = initials(name);
-        document.getElementById('u-avatar').style.background = 'linear-gradient(135deg,' + aColor(tgUser && tgUser.id) + ',#1d4ed8)';
-        document.getElementById('u-name').textContent = name;
-        document.getElementById('u-joined').textContent = fullDate(profile.joined_date);
-        document.getElementById('s-usage').textContent = usage;
-        document.getElementById('s-days').textContent = days;
-        document.getElementById('s-level').textContent = lv.label;
-        document.getElementById('s-next').textContent = lv.next;
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('user-view').style.display = 'block';
-    }
-
-    function renderAdminView(data) {
-        allUsers = data.users || [];
-        const today = new Date().toDateString();
-        const todayN = allUsers.filter(function(u){ return u.date && new Date(u.date).toDateString() === today; }).length;
-        document.getElementById('total-count').textContent = data.count != null ? data.count : allUsers.length;
-        document.getElementById('today-badge').textContent = '+' + todayN + ' bugun';
-        renderUsers(allUsers);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('admin-view').style.display = 'block';
-    }
-
-    function renderUsers(list) {
-        const c = document.getElementById('users-list');
-        c.innerHTML = '';
-        if (!list.length) { c.innerHTML = '<div class="empty">😕 Hech narsa topilmadi</div>'; return; }
-        list.forEach(function(u, i) {
-            const div = document.createElement('div');
-            div.className = 'u-card';
-            div.innerHTML =
-                '<div class="u-idx">' + (i+1) + '</div>' +
-                '<div class="u-avatar" style="background:' + aColor(u.id) + ';color:#fff">' + initials(u.name) + '</div>' +
-                '<div class="u-info">' +
-                  '<div class="u-name">' + (u.name || "Noma'lum") + '</div>' +
-                  '<div class="u-meta">' +
-                    '<span>🆔 ' + u.id + '</span>' +
-                    '<span>🕐 ' + relDate(u.date) + '</span>' +
-                    (u.usage ? '<span class="usage-pill">🛠 ' + u.usage + '</span>' : '') +
-                  '</div>' +
-                '</div>';
-            c.appendChild(div);
-        });
-    }
-
-    function filterUsers() {
-        const q = document.getElementById('search-input').value.toLowerCase().trim();
-        if (!q) { renderUsers(allUsers); return; }
-        renderUsers(allUsers.filter(function(u){ return (u.name||'').toLowerCase().includes(q) || String(u.id).includes(q); }));
-    }
-
-    document.addEventListener('DOMContentLoaded', async function() {
-        const tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
-
-        try {
-            const authHeaders = { 'X-Telegram-Init-Data': tg.initData };
-            const adminRes = await fetch('/api/stats', { headers: authHeaders });
-            if (adminRes.ok) { renderAdminView(await adminRes.json()); return; }
-        } catch(e) {}
-
-        try {
-            const profileRes = await fetch('/api/user-profile', { headers: authHeaders });
-            if (profileRes.ok) { renderUserView(await profileRes.json(), tgUser); return; }
-        } catch(e) {}
-
-        const name = tgUser ? tgUser.first_name : 'Foydalanuvchi';
-        document.getElementById('u-avatar').textContent = initials(name);
-        document.getElementById('u-name').textContent = name;
-        document.getElementById('u-joined').textContent = "Botdan foydalanish uchun /start bosing";
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('user-view').style.display = 'block';
+    $('t-map').textContent = T('mapTitle'); $('t-map-hint').textContent = T('mapHint');
+    const map = $('u-map'); map.innerHTML = '';
+    // Sinab ko'rilmaganlar oldinda — ular ko'zga tashlansin
+    me.sections.slice().sort(function (a, b) { return (a.uses > 0) - (b.uses > 0); }).forEach(function (s) {
+        const tile = h('button', 'tile' + (s.uses ? '' : ' new'));
+        tile.appendChild(h('div', 't', s.title));
+        tile.appendChild(h('div', 'd', s.desc));
+        tile.appendChild(h('span', 'badge', s.uses ? '✅' : T('tryIt')));
+        tile.onclick = function () { openSection(s.key, me.bot_username); };
+        map.appendChild(tile);
     });
+
+    $('t-invite').textContent = T('inviteTitle');
+    $('u-invite-text').textContent = T('inviteText', {n: me.referrals});
+    $('u-link').textContent = me.invite_link;
+    $('btn-share').textContent = T('share');
+    $('btn-share').onclick = function () {
+        tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(me.invite_link) + '&text=' + encodeURIComponent(T('inviteMsg')));
+    };
+    $('btn-copy').textContent = T('copy');
+    $('btn-copy').onclick = function () {
+        const done = function () { $('btn-copy').textContent = T('copied'); };
+        if (navigator.clipboard) navigator.clipboard.writeText(me.invite_link).then(done, done); else done();
+    };
+    $('btn-back').textContent = T('back');
+    $('btn-back').onclick = function () { tg.close(); };
+}
+
+// ── 📊 Admin: statistika ──
+function renderChart(series) {
+    const svg = $('a-chart'), W = 300, H = 150, pad = 4;
+    const max = Math.max(1, ...series.map(function (p) { return Math.max(p.active, p.new); }));
+    const bw = (W - pad * 2) / series.length;
+    let out = '';
+    series.forEach(function (p, i) {
+        const x = pad + i * bw;
+        const ha = (p.active / max) * (H - 18), hn = (p.new / max) * (H - 18);
+        out += '<rect x="' + (x + 1) + '" y="' + (H - 12 - ha) + '" width="' + Math.max(1, bw * 0.55) + '" height="' + ha + '" rx="1.5" fill="#3b82f6"><title>' + p.day + ': ' + p.active + '</title></rect>';
+        out += '<rect x="' + (x + 1 + bw * 0.55) + '" y="' + (H - 12 - hn) + '" width="' + Math.max(1, bw * 0.3) + '" height="' + hn + '" rx="1.5" fill="#10b981"></rect>';
+    });
+    out += '<text x="2" y="10" fill="#8b949e" font-size="9">' + max + '</text>';
+    out += '<text x="2" y="' + (H - 1) + '" fill="#8b949e" font-size="8">' + series[0].day.slice(5).split('-').reverse().join('.') + '</text>';
+    out += '<text x="' + (W - 2) + '" y="' + (H - 1) + '" fill="#8b949e" font-size="8" text-anchor="end">' + series[series.length - 1].day.slice(5).split('-').reverse().join('.') + '</text>';
+    svg.innerHTML = out;   // faqat raqamlar va sanalar — foydalanuvchi matni yo'q
+}
+
+function renderDashboard(d) {
+    const s = d.stats, kpi = $('a-kpi'); kpi.innerHTML = '';
+    kpi.appendChild(statCard(T('total'), s.total, 'blue'));
+    kpi.appendChild(statCard(T('activeToday'), s.active_day, 'green'));
+    kpi.appendChild(statCard(T('newToday'), '+' + s.new_day, 'green'));
+    kpi.appendChild(statCard(T('newWeek'), '+' + s.new_week, ''));
+    kpi.appendChild(statCard(T('activeWeek'), s.active_week, ''));
+    kpi.appendChild(statCard(T('activeMonth'), s.active_month, ''));
+    kpi.appendChild(statCard(T('returning'), s.returning_week, 'violet', T('returningSub')));
+    kpi.appendChild(statCard(T('referred'), s.referred, 'violet'));
+    kpi.appendChild(statCard(T('aiToday'), d.ai.requests, 'orange', T('aiPeople', {n: d.ai.users})));
+    kpi.appendChild(statCard(T('blocked'), s.blocked, 'red'));
+
+    $('t-chart').textContent = T('chartTitle');
+    $('lg-active').textContent = T('legendActive'); $('lg-new').textContent = T('legendNew');
+    renderChart(d.series);
+
+    $('t-sections').textContent = T('sectionsTitle');
+    const box = $('a-sections'); box.innerHTML = '';
+    const maxUsers = Math.max(1, ...d.sections.map(function (x) { return x.users; }));
+    if (!d.sections.length) box.appendChild(h('p', 'empty', T('noData')));
+    d.sections.forEach(function (x) {
+        const row = h('div', 'hbar'), top = h('div', 'top');
+        top.appendChild(h('b', '', x.title));
+        top.appendChild(h('span', '', T('sectionLine', {u: x.users, n: x.uses})));
+        const bar = h('div', 'bar'), fill = h('div');
+        fill.style.width = Math.round(x.users * 100 / maxUsers) + '%';
+        bar.appendChild(fill); row.appendChild(top); row.appendChild(bar); box.appendChild(row);
+    });
+
+    $('t-referrers').textContent = T('referrersTitle');
+    const refs = $('a-referrers'); refs.innerHTML = '';
+    if (!d.referrers.length) refs.appendChild(h('p', 'empty', T('noData')));
+    d.referrers.forEach(function (r) { refs.appendChild(userCard({id: r.id, name: r.name}, '👥 ' + r.count)); });
+    $('a-updated').textContent = T('updated', {t: d.generated});
+}
+
+// ── 👥 Admin: foydalanuvchilar ──
+function userCard(u, extra) {
+    const card = h('div', 'u-card');
+    const av = h('div', 'u-avatar', initials(u.name)); av.style.background = color(u.id);
+    const info = h('div', 'u-info');
+    info.appendChild(h('div', 'u-name', u.name || T('noName')));
+    const meta = h('div', 'u-meta');
+    meta.appendChild(h('span', '', '🆔 ' + u.id));
+    if (extra) meta.appendChild(h('span', 'pill blue', extra));
+    if (u.last_active !== undefined) {
+        meta.appendChild(h('span', '', T('lastSeen', {t: ago(u.last_active)})));
+        meta.appendChild(h('span', '', T('joinedShort', {d: fmtDate(u.joined)})));
+        if (u.usage) meta.appendChild(h('span', 'pill blue', T('usesShort', {n: u.usage})));
+        if (u.blocked) meta.appendChild(h('span', 'pill orange', T('pillBlocked')));
+        if (u.banned) meta.appendChild(h('span', 'pill red', T('pillBanned')));
+    }
+    info.appendChild(meta); card.appendChild(av); card.appendChild(info);
+    return card;
+}
+
+const usersState = {offset: 0, total: 0, loading: false, timer: null};
+async function loadUsers(reset) {
+    if (usersState.loading) return;
+    usersState.loading = true;
+    if (reset) { usersState.offset = 0; $('users').innerHTML = ''; }
+    try {
+        const q = encodeURIComponent($('q').value.trim()), sort = $('sort').value;
+        const d = await api('/api/admin/users?q=' + q + '&sort=' + sort + '&offset=' + usersState.offset);
+        usersState.total = d.total; usersState.offset += d.users.length;
+        $('found').textContent = T('found', {n: d.total});
+        if (!d.total) $('users').appendChild(h('p', 'empty', T('nothing')));
+        d.users.forEach(function (u) { $('users').appendChild(userCard(u)); });
+        $('btn-more').classList.toggle('hidden', usersState.offset >= usersState.total);
+    } catch (e) { $('found').textContent = T('error'); }
+    usersState.loading = false;
+}
+
+function showTab(name) {
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === name); });
+    ['me', 'stats', 'users'].forEach(function (v) { $('view-' + v).classList.toggle('hidden', v !== name); });
+    if (name === 'users' && !usersState.total && !$('users').children.length) loadUsers(true);
+    window.scrollTo(0, 0);
+}
+
+// ── Ishga tushirish ──
+document.addEventListener('DOMContentLoaded', async function () {
+    $('loading-text').textContent = T('loading');
+    if (!tg || !tg.initData) { showError(T('openInTelegram')); return; }
+    let me;
+    try { me = await api('/api/me'); }
+    catch (e) { showError(T('error')); return; }
+    renderMe(me);
+
+    if (me.is_admin) {
+        const labels = {stats: T('tabStats'), users: T('tabUsers'), me: T('tabMe')};
+        document.querySelectorAll('.tab').forEach(function (b) {
+            b.textContent = labels[b.dataset.tab];
+            b.onclick = function () { showTab(b.dataset.tab); };
+        });
+        $('q').placeholder = T('search');
+        const opts = $('sort').options;
+        opts[0].textContent = T('sortActive'); opts[1].textContent = T('sortJoined'); opts[2].textContent = T('sortUsage');
+        $('sort').onchange = function () { loadUsers(true); };
+        $('q').oninput = function () { clearTimeout(usersState.timer); usersState.timer = setTimeout(function () { loadUsers(true); }, 350); };
+        $('btn-more').textContent = T('more');
+        $('btn-more').onclick = function () { loadUsers(false); };
+        try { renderDashboard(await api('/api/admin/dashboard')); } catch (e) {}
+        $('tabs').classList.remove('hidden');
+        $('loading').classList.add('hidden');
+        showTab('stats');
+    } else {
+        $('loading').classList.add('hidden');
+        $('view-me').classList.remove('hidden');
+    }
+});
 </script>
 </body>
 </html>

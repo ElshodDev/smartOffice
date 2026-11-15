@@ -216,8 +216,16 @@ async def go_section(callback: CallbackQuery, state: FSMContext):
         return
     await callback.answer()
     await state.clear()
+    await send_section(callback.message, key)
+
+
+async def send_section(message: Message, key: str) -> bool:
+    """Bo'lim menyusini yuboradi (AI tavsiyasi, profil, Web ilova xaritasi uchun)."""
+    if key not in SECTIONS:
+        return False
     title, _, build = SECTIONS[key]
-    await callback.message.answer(f"{title}\n\nKerakli amalni tanlang 👇", reply_markup=build())
+    await message.answer(f"{title}\n\nKerakli amalni tanlang 👇", reply_markup=build())
+    return True
 
 
 # ── Tez buyruqlar ──────────────────────────────────────────────────────────

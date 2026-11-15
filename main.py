@@ -38,54 +38,25 @@ from middlewares.throttling import ThrottlingMiddleware
 from middlewares.subscription import SubscriptionMiddleware
 from services.database import create_table
 from services.image_editor import ImageEditorService
-from src.shared.security.http import require_admin, require_webapp_user
 from src.shared.logging import configure_logging
 from src.shared.settings import get_settings
-from src.modules.identity.application.queries import IdentityQueryService
-from src.modules.identity.infrastructure.sqlite import SqliteIdentityReadAdapter
 
 app_settings = get_settings()
-identity_queries = IdentityQueryService(SqliteIdentityReadAdapter())
 
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
-async def api_stats(request: web.Request):
-    try:
-        require_admin(request, app_settings)
-        statistics = await identity_queries.get_admin_statistics()
-        return web.json_response(statistics)
-    except web.HTTPException:
-        raise
-    except Exception:
-        logging.exception("Failed to load admin statistics")
-        return web.json_response({"error": "Internal server error"}, status=500)
-
-async def api_user_profile(request: web.Request):
-    """Har bir foydalanuvchining o'z profilini ko'rishi uchun endpoint."""
-    try:
-        authenticated_user_id = require_webapp_user(request, app_settings)
-        profile = await identity_queries.get_own_profile(authenticated_user_id)
-        if not profile:
-            return web.json_response({"error": "User not found"}, status=404)
-        return web.json_response(profile)
-    except web.HTTPException:
-        raise
-    except Exception:
-        logging.exception("Failed to load user profile")
-        return web.json_response({"error": "Internal server error"}, status=500)
-
-
 async def index(request):
     from services.alphabet import load_page
-    return web.Response(text=load_page("./webapp/index.html"), content_type="text/html")
+    return web.Response(text=load_page("./webapp/index.html"), content_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
 
 async def start_dummy_server(bot):
     image_editor = ImageEditorService(bot, app_settings)
     app = web.Application(client_max_size=10 * 1024 * 1024)
     app.router.add_get("/ping", handle_ping)
-    app.router.add_get("/api/stats", api_stats)
-    app.router.add_get("/api/user-profile", api_user_profile)
+    from services import webapp_api
+    webapp_api.setup_routes(app)
     app.router.add_get("/", index)
     app.router.add_get("/form-editor", image_editor.serve_form_editor)
     app.router.add_get("/forms/{filename}", image_editor.serve_form_image)

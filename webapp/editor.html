@@ -127,6 +127,7 @@
             z-index: 10;
             touch-action: none;
         }
+        .text-overlay .ov-text { display: inline-block; min-width: 20px; outline: none; white-space: pre-wrap; cursor: text; }
         .text-overlay:focus,
         .text-overlay.selected {
             border-color: var(--primary);
@@ -405,7 +406,25 @@
     </div>
 </div>
 
+<template id="msgs">
+    <span data-k="imgFail">❌ Rasm yuklanmadi. Havola eskirgan bo'lishi mumkin — botga blankani qaytadan yuboring.</span>
+    <span data-k="confirmClear">Barcha tahrirlashlarni o'chirmoqchimisiz?</span>
+    <span data-k="enlarge">Kattalashtirish</span>
+    <span data-k="shrink">Kichraytirish</span>
+    <span data-k="remove">O'chirish</span>
+    <span data-k="saving">⏳ Saqlanmoqda...</span>
+    <span data-k="saveBtn">📤 Saqlash va Yuborish</span>
+    <span data-k="sent">✅ Tayyor hujjat chatga yuborildi!</span>
+    <span data-k="serverError">Server xatosi</span>
+    <span data-k="expired">Bu blanka allaqachon saqlangan yoki havola eskirgan. Botga blankani qaytadan yuboring.</span>
+    <span data-k="errorPrefix">❌ Xatolik: </span>
+</template>
+
 <script>
+function T(key) {
+    const el = document.querySelector('#msgs').content.querySelector('[data-k="' + key + '"]');
+    return el ? el.textContent : key;
+}
 const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
@@ -450,7 +469,10 @@ baseImage.onload = () => {
     loading.style.display = 'none';
 };
 baseImage.onerror = () => {
-    loading.innerHTML = '<p style="color:#ef4444">❌ Rasm yuklanmadi. Qaytadan urinib ko\'ring.</p>';
+    loading.innerHTML = '';
+    const p = document.createElement('p');
+    p.style.color = '#ef4444'; p.style.padding = '20px'; p.textContent = T('imgFail');
+    loading.appendChild(p);
 };
 baseImage.src = `/forms/${imgFilename}?token=${encodeURIComponent(formToken)}`;
 
@@ -475,46 +497,61 @@ function getScale() {
     return baseImage.naturalWidth / baseImage.offsetWidth;
 }
 
-// ── Canvas click → add text ──
-drawCanvas.addEventListener('click', (e) => {
-    if (mode !== 'text') return;
+// ── Canvas'ga bosish → matn qo'shish ──
+// "click" emas, pointer hodisalari: telefonda touchstart bloklangani uchun "click" umuman kelmaydi
+let tapStart = null;
+drawCanvas.addEventListener('pointerdown', (e) => {
+    if (mode === 'text') tapStart = { x: e.clientX, y: e.clientY };
+});
+drawCanvas.addEventListener('pointerup', (e) => {
+    if (mode !== 'text' || !tapStart) return;
+    const moved = Math.abs(e.clientX - tapStart.x) > 8 || Math.abs(e.clientY - tapStart.y) > 8;
+    tapStart = null;
+    if (moved) return;
     const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    addTextAt(x, y);
+    addTextAt(e.clientX - rect.left, e.clientY - rect.top);
 });
 
 function addTextAt(x, y, value='') {
+    // Tuzilma: .text-overlay (surish, uslub) > .ov-text (yoziladigan joy) + .delete-btn
+    // Matn alohida span ichida — aks holda kursor o'chirish tugmasi ichiga tushib, yozilgan matn yo'qolardi
     const div = document.createElement('div');
     div.className = 'text-overlay';
-    div.contentEditable = true;
     div.style.left = x + 'px';
     div.style.top = y + 'px';
     div.style.fontSize = currentFontSize + 'px';
     div.style.fontFamily = currentFontFamily;
     div.style.color = currentColor;
-    div.innerText = value;
+
+    const text = document.createElement('span');
+    text.className = 'ov-text';
+    text.contentEditable = true;
+    text.innerText = value;
+    div.appendChild(text);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'delete-btn';
     delBtn.innerText = '×';
+    delBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
     delBtn.onclick = (e) => { e.stopPropagation(); div.remove(); };
     div.appendChild(delBtn);
 
-    // Drag
     makeDraggable(div);
 
-    div.addEventListener('focus', () => selectOverlay(div));
-    div.addEventListener('blur', deselectAll);
+    text.addEventListener('focus', () => selectOverlay(div));
+    text.addEventListener('blur', () => {
+        // Bo'sh qolgan matn maydonini olib tashlaymiz
+        setTimeout(() => { if (!text.innerText.trim() && document.activeElement !== text) div.remove(); }, 150);
+        deselectAll();
+    });
 
     container.appendChild(div);
     textOverlays.push(div);
-    div.focus();
+    text.focus();
 
-    // Place cursor at end
     const range = document.createRange();
     const sel = window.getSelection();
-    range.selectNodeContents(div);
+    range.selectNodeContents(text);
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
@@ -537,7 +574,8 @@ function makeDraggable(el) {
 
     el.addEventListener('pointerdown', (e) => {
         if (e.target.tagName === 'BUTTON') return;
-        if (el.classList.contains('selected') && el.contentEditable === 'true') return;
+        // Tanlangan matn ichida bosilsa — tahrirlash (kursor qo'yish), surish emas
+        if (el.classList.contains('selected') && e.target.classList.contains('ov-text')) return;
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
@@ -559,14 +597,28 @@ function makeDraggable(el) {
     }, { passive: false });
 
     el.addEventListener('pointerup', (e) => {
+        const moved = isDragging && (Math.abs(e.clientX - startX) > 5 || Math.abs(e.clientY - startY) > 5);
+        const wasDragging = isDragging;
         isDragging = false;
         e.stopPropagation();
+        // Surilmasdan bosilgan bo'lsa — matnni tahrirlash uchun ochamiz (telefonda ham)
+        const span = el.querySelector('.ov-text');
+        if (wasDragging && !moved && span) {
+            span.focus();
+            const range = document.createRange();
+            range.selectNodeContents(span);
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
     }, { passive: false });
 
-    // Touch eventlarni ham bloklash
-    el.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-    el.addEventListener('touchmove',  (e) => e.preventDefault(), { passive: false });
-    el.addEventListener('touchend',   (e) => e.preventDefault(), { passive: false });
+    // Touch eventlarni bloklash (sahifa siljimasligi uchun) — tanlangan matn ichida esa kursor qo'yishga ruxsat
+    const editingText = (e) => el.classList.contains('selected') && e.target.classList && e.target.classList.contains('ov-text');
+    el.addEventListener('touchstart', (e) => { if (!editingText(e)) e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchmove',  (e) => { if (!editingText(e)) e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchend',   (e) => { if (!editingText(e)) e.preventDefault(); }, { passive: false });
 }
 
 // ── Insert today's date ──
@@ -657,9 +709,9 @@ function undoLast() {
 }
 
 function clearAll() {
-    if (!confirm('Barcha tahrirlashlarni o\'chirmoqchimisiz?')) return;
+    if (!confirm(T('confirmClear'))) return;
     ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-    document.querySelectorAll('.text-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.text-overlay, .sig-overlay').forEach(el => el.remove());
     textOverlays = [];
     history = [];
     saveHistoryState();
@@ -766,10 +818,13 @@ function applySignature() {
     img.onload = () => {
         // Wrapper div — ko'chirish, kattalashtirish, o'chirish uchun
         const wrap = document.createElement('div');
+        wrap.className = 'sig-overlay';
+        // Ekranda ko'rinib turgan qismning o'rtasiga qo'yamiz
+        const cRect = container.getBoundingClientRect();
+        const visibleTop = Math.max(0, -cRect.top) + Math.min(window.innerHeight, cRect.height) / 2 - 40;
         wrap.style.cssText = `
             position: absolute;
-            left: 50%; top: 50%;
-            transform: translate(-50%, -50%);
+            left: ${Math.max(0, cRect.width / 2 - 80)}px; top: ${Math.max(0, visibleTop)}px;
             width: 160px;
             z-index: 15;
             cursor: move;
@@ -778,6 +833,7 @@ function applySignature() {
 
         const imgEl = document.createElement('img');
         imgEl.src = sigData;
+        imgEl.className = 'sig-img';
         imgEl.style.cssText = 'width:100%;display:block;border:2px dashed #3b82f6;border-radius:4px;';
 
         // Tugmalar paneli
@@ -816,15 +872,15 @@ function applySignature() {
 
         let currentW = 160;
 
-        const btnBig  = makeCtrlBtn('➕', 'Kattalashtirish', () => {
+        const btnBig  = makeCtrlBtn('➕', T('enlarge'), () => {
             currentW = Math.min(currentW + 20, 400);
             wrap.style.width = currentW + 'px';
         });
-        const btnSmall = makeCtrlBtn('➖', 'Kichraytirish', () => {
+        const btnSmall = makeCtrlBtn('➖', T('shrink'), () => {
             currentW = Math.max(currentW - 20, 40);
             wrap.style.width = currentW + 'px';
         });
-        const btnDel = makeCtrlBtn('🗑️', 'O\'chirish', () => wrap.remove());
+        const btnDel = makeCtrlBtn('🗑️', T('remove'), () => wrap.remove());
 
         controls.appendChild(btnSmall);
         controls.appendChild(btnBig);
@@ -844,7 +900,7 @@ function applySignature() {
 async function saveAndSend() {
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
-    btn.innerText = '⏳ Saqlanmoqda...';
+    btn.innerText = T('saving');
 
     try {
         // Create final merged canvas
@@ -865,30 +921,34 @@ async function saveAndSend() {
         const offsetX = imgRect.left - containerRect.left;
         const offsetY = imgRect.top - containerRect.top;
 
-        const allOverlays = container.querySelectorAll('.text-overlay, img[style*="position:absolute"]');
-        for (const el of allOverlays) {
+        // Matnlar (faqat .ov-text ichidagi yozuv — o'chirish tugmasi «×» qo'shilmaydi)
+        for (const el of container.querySelectorAll('.text-overlay')) {
+            const span = el.querySelector('.ov-text');
+            const text = (span ? span.innerText : '').replace(/\u00a0/g, ' ').replace(/\s+$/, '');
+            if (!text.trim()) continue;
             const left = parseFloat(el.style.left) || 0;
             const top = parseFloat(el.style.top) || 0;
-            const realX = (left - offsetX) * scale;
-            const realY = (top - offsetY) * scale;
-
-            if (el.tagName === 'DIV') {
-                // Text overlay
-                const text = el.innerText.trim();
-                if (!text) continue;
-                const fs = parseFloat(el.style.fontSize) * scale;
-                fCtx.font = `${fs}px ${el.style.fontFamily || 'Times New Roman'}`;
-                fCtx.fillStyle = el.style.color || '#000';
-                fCtx.fillText(text, realX, realY + fs);
-            } else if (el.tagName === 'IMG') {
-                // Signature image
-                const w = el.offsetWidth * scale;
-                const h = el.offsetHeight * scale;
-                fCtx.drawImage(el, realX, realY, w, h);
-            }
+            const fs = parseFloat(el.style.fontSize) * scale;
+            fCtx.font = `${fs}px ${el.style.fontFamily || 'Times New Roman'}`;
+            fCtx.fillStyle = el.style.color || '#000';
+            fCtx.textBaseline = 'top';
+            // .text-overlay: chegara 2px + ichki bo'shliq 2px/4px
+            const x = (left + 6 - offsetX) * scale;
+            const y = (top + 4 - offsetY) * scale;
+            text.split('\n').forEach((line, i) => fCtx.fillText(line, x, y + i * fs * 1.15));
+        }
+        // Imzolar
+        for (const wrap of container.querySelectorAll('.sig-overlay')) {
+            const img = wrap.querySelector('img');
+            if (!img) continue;
+            const left = (parseFloat(wrap.style.left) || 0) + 2;   // 2px — ramka
+            const top = (parseFloat(wrap.style.top) || 0) + 2;
+            fCtx.drawImage(img, (left - offsetX) * scale, (top - offsetY) * scale,
+                           (img.offsetWidth - 4) * scale, (img.offsetHeight - 4) * scale);
         }
 
-        const imageDataUrl = finalCanvas.toDataURL('image/png');
+        // JPEG — PNG'dan 5–10 baravar yengil (server chegarasi 10 MB)
+        const imageDataUrl = finalCanvas.toDataURL('image/jpeg', 0.92);
 
         // Send to server
         const resp = await fetch('/api/form/save', {
@@ -905,19 +965,22 @@ async function saveAndSend() {
             })
         });
 
-        const result = await resp.json();
+        let result = {};
+        try { result = await resp.json(); } catch (e) {}
         if (result.ok) {
-            tg.showAlert('✅ Ariza muvaffaqiyatli yuborildi!', () => {
+            tg.showAlert(T('sent'), () => {
                 tg.close();
             });
+        } else if (resp.status === 409 || resp.status === 403) {
+            throw new Error(T('expired'));
         } else {
-            throw new Error(result.error || 'Server xatosi');
+            throw new Error(T('serverError') + ' (' + resp.status + ')');
         }
 
     } catch (err) {
         btn.disabled = false;
-        btn.innerText = '📤 Saqlash va Yuborish';
-        tg.showAlert('❌ Xatolik: ' + err.message);
+        btn.innerText = T('saveBtn');
+        tg.showAlert(T('errorPrefix') + err.message);
     }
 }
 </script>

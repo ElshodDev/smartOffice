@@ -67,6 +67,13 @@ async def cmd_start(message: Message, bot: Bot):
 
     if await check_sub(bot, message.from_user.id, use_cache=False):
         await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=get_main_menu())
+        # Web ilovadagi xaritadan: /start go_scan → shu bo'lim darhol ochiladi
+        if len(args) > 1 and args[1].startswith("go_"):
+            from handlers.ai_assistant import send_section
+            from services import activity
+            key = args[1][3:]
+            if await send_section(message, key):
+                activity.record_section(message.from_user.id, key)
     else:
         await message.answer(
             "Botdan to'liq foydalanish uchun kanalimizga obuna bo'ling!",
