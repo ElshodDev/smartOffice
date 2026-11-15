@@ -105,3 +105,50 @@ async def apply_migrations(db: aiosqlite.Connection) -> None:
         await db.execute(
             "INSERT INTO schema_migrations (version) VALUES (?)", (version,)
         )
+
+
+# ── PostgreSQL (masalan, Neon) ──────────────────────────────────────────────
+# Sanalar SQLite'dagi kabi matn ko'rinishida saqlanadi ("YYYY-MM-DD HH:MM:SS" / ISO),
+# shuning uchun ilova kodi ikkala bazada ham bir xil ishlaydi.
+PG_MIGRATIONS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGSERIAL PRIMARY KEY,
+        telegram_id BIGINT UNIQUE NOT NULL,
+        full_name TEXT,
+        referrer_id BIGINT,
+        usage_count INTEGER DEFAULT 0,
+        joined_date TEXT
+    );
+    CREATE TABLE IF NOT EXISTS reminders (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        text TEXT NOT NULL,
+        run_date TEXT NOT NULL,
+        is_done INTEGER DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_reminders_pending ON reminders (is_done, run_date);
+    CREATE TABLE IF NOT EXISTS form_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        token_hash TEXT UNIQUE NOT NULL,
+        user_id BIGINT NOT NULL,
+        filename TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_form_sessions_expiry ON form_sessions (expires_at);
+    """,
+)
+
+
+async def apply_pg_migrations(conn) -> None:
+    await conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())"
+    )
+    applied = {row[0] for row in await conn.fetch("SELECT version FROM schema_migrations")}
+    for version, sql in enumerate(PG_MIGRATIONS, start=1):
+        if version in applied:
+            continue
+        async with conn.transaction():
+            await conn.execute(sql)
+            await conn.execute("INSERT INTO schema_migrations (version) VALUES ($1)", version)

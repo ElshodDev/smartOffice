@@ -176,6 +176,8 @@ async def main():
         await dp.start_polling(bot)
     finally:
         stop_scheduler()
+        from services import db
+        await db.close()
         logging.info("Bot to'xtatildi!")
 
 
