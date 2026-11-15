@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
@@ -98,7 +98,9 @@
     <span data-k="user">Foydalanuvchi</span>
     <span data-k="joined">{d} dan beri botda</span>
     <span data-k="notRegistered">Botdan to'liq foydalanish uchun botga /start yozing</span>
-    <span data-k="openInTelegram">Bu sahifa Telegram ichida ochilishi kerak. Botdagi «🌐 Web Ilova» tugmasini bosing.</span>
+    <span data-k="openInTelegram">Bu sahifa Telegram ichida ochilishi kerak. Botga kirib, «🌐 Web Ilova» tugmasini bosing.</span>
+    <span data-k="oldMenu">Menyuni yangilash kerak. Pastdagi tugmani bosing — bot sizga ilovani ochadigan to'g'ri tugmani yuboradi.</span>
+    <span data-k="reopen">🔄 Ilovani ochish</span>
     <span data-k="error">Ma'lumotni yuklab bo'lmadi. Internetni tekshirib, qaytadan oching.</span>
     <span data-k="toNext">Keyingi daraja ({l}) uchun yana {n} ta amal</span>
     <span data-k="maxLevel">Eng yuqori daraja! 🎉</span>
@@ -280,7 +282,9 @@ function statCard(label, value, cls, sub) {
 }
 function showError(text) {
     $('loading').innerHTML = '';
-    $('loading').appendChild(h('p', '', text));
+    const p = h('p', '', text);
+    p.style.maxWidth = '320px'; p.style.textAlign = 'center'; p.style.lineHeight = '1.45'; p.style.fontSize = '14px';
+    $('loading').appendChild(p);
 }
 function openSection(key, botUsername) {
     // «🌐 Web Ilova» tugmasidan ochilgan bo'lsa — sendData (ilova yopiladi, bot bo'limni ochadi);
@@ -445,7 +449,20 @@ function showTab(name) {
 // ── Ishga tushirish ──
 document.addEventListener('DOMContentLoaded', async function () {
     $('loading-text').textContent = T('loading');
-    if (!tg || !tg.initData) { showError(T('openInTelegram')); return; }
+    if (!tg || !tg.initData) {
+        // Eski pastki menyu tugmasidan ochilgan: Telegram bu holda foydalanuvchi ma'lumotini bermaydi,
+        // lekin sendData ishlaydi — botdan to'g'ri tugmani so'raymiz
+        if (tg && tg.platform && tg.platform !== 'unknown') {
+            showError(T('oldMenu'));
+            const btn = h('button', 'btn', T('reopen'));
+            btn.style.marginTop = '8px'; btn.style.flex = 'none'; btn.style.padding = '12px 24px';
+            btn.onclick = function () { try { tg.sendData('open'); } catch (e) { tg.close(); } };
+            $('loading').appendChild(btn);
+        } else {
+            showError(T('openInTelegram'));
+        }
+        return;
+    }
     let me;
     try { me = await api('/api/me'); }
     catch (e) { showError(T('error')); return; }

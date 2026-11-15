@@ -21,6 +21,7 @@ MAIN_BUTTONS = {
     "📞 Admin / Buyurtma",
     "🔗 Do'stlarga ulashish",
     "🛒 Xizmatlarim",
+    "🌐 Web Ilova",
     "/start"
 }
 

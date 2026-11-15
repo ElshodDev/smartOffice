@@ -147,11 +147,37 @@ async def redirect_to_settings(callback: CallbackQuery, state: FSMContext, bot):
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=get_settings_menu())
 
 
-# ── Web ilova: bo'limlar xaritasidan tanlangan bo'lim (tg.sendData("go:KALIT")) ──
+# ── 🌐 Web ilova ──────────────────────────────────────────────────────────
+WEB_APP_TEXT = (
+    "🌐 <b>Web ilova</b>\n\n"
+    "Profilingiz, darajangiz, botning barcha bo'limlari xaritasi va taklif havolangiz — bir sahifada.\n\n"
+    "Ochish uchun pastdagi tugmani bosing 👇"
+)
+
+
+async def send_web_app_button(message: Message) -> None:
+    from keyboards.reply import web_app_inline
+    await message.answer(WEB_APP_TEXT, parse_mode="HTML", reply_markup=web_app_inline())
+
+
+@router.message(F.text == "🌐 Web Ilova")
+async def open_web_app(message: Message, state: FSMContext):
+    await state.clear()
+    await send_web_app_button(message)
+
+
+# Web ilovadan keladigan ma'lumot (tg.sendData): eski menyudan ochilganda "open", xaritadan "go:KALIT"
 @router.message(F.web_app_data)
-async def web_app_open_section(message: Message, state: FSMContext):
+async def web_app_data(message: Message, state: FSMContext):
     from handlers.ai_assistant import send_section
+    from keyboards.reply import get_main_menu
     data = (message.web_app_data.data or "").strip()
+    if data == "open":
+        # Telefonda eski menyu (pastki tugma Web ilovani to'g'ridan-to'g'ri ochadigan) qolgan — yangilaymiz
+        await state.clear()
+        await message.answer("✅ Menyu yangilandi.", reply_markup=get_main_menu())
+        await send_web_app_button(message)
+        return
     if data.startswith("go:"):
         key = data[3:]
         await state.clear()

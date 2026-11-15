@@ -1,10 +1,23 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types.web_app_info import WebAppInfo
 from config import RENDER_URL
 
-def get_main_menu() -> ReplyKeyboardMarkup:
-    web_app_url = f"{RENDER_URL.rstrip('/')}/?v=5"
+WEB_APP_BUTTON = "🌐 Web Ilova"
 
+
+def web_app_url() -> str:
+    return f"{RENDER_URL.rstrip('/')}/?v=6"
+
+
+def web_app_inline() -> InlineKeyboardMarkup:
+    """Web ilova xabar ichidagi tugma orqali ochiladi: pastki klaviatura tugmasidan ochilganda
+    Telegram foydalanuvchi ma'lumotini (initData) bermaydi va ilova kim kirganini bila olmaydi."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🌐 Web ilovani ochish", web_app=WebAppInfo(url=web_app_url()))
+    ]])
+
+
+def get_main_menu() -> ReplyKeyboardMarkup:
     keyboard = [
         [
             KeyboardButton(text="📁 Hujjatlar bilan ishlash")
@@ -18,7 +31,7 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             KeyboardButton(text="👤 Profil va Sozlamalar"),
         ],
         [
-            KeyboardButton(text="🌐 Web Ilova", web_app=WebAppInfo(url=web_app_url)),
+            KeyboardButton(text=WEB_APP_BUTTON),
         ]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
