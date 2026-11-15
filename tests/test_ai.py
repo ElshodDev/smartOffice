@@ -87,5 +87,16 @@ class ErrorMappingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.kind, "disabled")
 
 
+
+class KeywordSectionTests(unittest.TestCase):
+    def test_keywords(self):
+        from handlers.ai_assistant import keyword_sections
+        self.assertEqual(keyword_sections("pdf yubormoqchiman"), ["pdf", "format"])
+        self.assertEqual(keyword_sections("Telefon suratini PDF qilmoqchiman"), ["scan"])
+        self.assertEqual(keyword_sections("Ishdan bo'shash arizasini qanday yozaman?"), ["docgen"])
+        self.assertEqual(keyword_sections("Excel jadvaldan ism qidirish"), ["search", "excel"])
+        self.assertEqual(keyword_sections("Bugun ob-havo qanday?"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
