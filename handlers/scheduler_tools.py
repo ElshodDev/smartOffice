@@ -45,6 +45,7 @@ async def daily_report(bot: Bot):
         y = await database.admin_stats(yesterday.strftime(fmt), week.strftime(fmt), week.strftime(fmt))
         # "kecha" = kecha 00:00 dan hozirgacha; bugun ertalabgacha bo'lgan qism juda kichik
         sections = await database.top_sections(since=yesterday.strftime(fmt), limit=3)
+        onb = await database.onboarding_stats(yesterday.strftime(fmt), now.strftime(fmt))
         top = "\n".join(f"  {i}. {activity.SECTION_TITLES.get(sec, sec)} — {users} kishi"
                          for i, (sec, users, _) in enumerate(sections, 1)) or "  —"
         await bot.send_message(
@@ -54,7 +55,8 @@ async def daily_report(bot: Bot):
                 f"👥 Jami foydalanuvchilar: <b>{total}</b>\n"
                 f"🆕 Kecha qo'shildi: <b>{y['new_day']}</b>\n"
                 f"🔥 Kecha faol bo'ldi: <b>{y['active_day']}</b>\n"
-                f"📅 7 kunda faol: <b>{y['active_week']}</b>\n\n"
+                f"📅 7 kunda faol: <b>{y['active_week']}</b>\n"
+                f"🚀 Kecha va bugun qo'shilganlardan bo'lim ishlatgan: <b>{onb['activated']} / {onb['joined']}</b>\n\n"
                 f"🏆 Kechagi eng mashhur bo'limlar:\n{top}\n\n"
                 f"<i>Batafsil: /admin → 📊 Statistika</i>"
             ),
@@ -62,6 +64,15 @@ async def daily_report(bot: Bot):
         )
     except Exception as e:
         logging.error(f"Scheduler error (daily report): {e}")
+
+
+async def send_nudges(bot: Bot):
+    from services import activity, onboarding
+    try:
+        await activity.flush()
+        await onboarding.send_nudges(bot)
+    except Exception as e:
+        logging.error(f"Qaytish eslatmalarini yuborishda xato: {e}")
 
 
 async def flush_activity():
@@ -119,3 +130,7 @@ def setup_daily_job(bot: Bot):
 
     # 3. Foydalanuvchi faolligini bazaga yozish (faqat yangi narsa bo'lsa — baza bo'sh vaqtda uxlaydi)
     scheduler.add_job(flush_activity, "interval", seconds=60, id="flush_activity", replace_existing=True)
+
+    # 4. Qo'shilib, 3 kun qaytmagan yangi foydalanuvchilarga bitta eslatma (har kuni 18:00)
+    scheduler.add_job(send_nudges, trigger=CronTrigger(hour=18, minute=0), kwargs={"bot": bot},
+                      id="nudge_newcomers", replace_existing=True)

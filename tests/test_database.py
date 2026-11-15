@@ -108,6 +108,31 @@ class _DatabaseContract:
         total, users = await database.list_users(limit=1, offset=1, sort="joined")
         self.assertEqual((total, len(users)), (2, 1))
 
+    async def test_onboarding_queries(self):
+        self.assertTrue(await database.set_flag(1, "onb:scan"))
+        self.assertFalse(await database.set_flag(1, "onb:scan"))          # bir marta
+        await database.set_flag(2, "onb:scan")
+        await database.set_flag(2, "tip:format")
+        self.assertTrue(await database.has_flag(2, "tip:format"))
+        self.assertEqual(await database.count_flags(2, "tip:"), 1)
+        self.assertEqual(await database.flag_stats("onb:", "2000-01-01"), [("scan", 2)])
+
+        # 3 ta yangi foydalanuvchi: biri darhol ishlatdi va ertasi qaytdi, biri 2 kundan keyin, biri umuman
+        await database.touch_users([(10, "A", "2026-11-10 09:00:00"), (11, "B", "2026-11-10 09:00:00"),
+                                    (12, "C", "2026-11-10 09:00:00")])
+        await database.add_section_uses([(10, "scan", 1, "2026-11-10 09:05:00")])
+        await database.touch_users([(10, "A", "2026-11-11 08:00:00")])
+        await database.add_section_uses([(11, "pdf", 1, "2026-11-12 10:00:00")])
+        await database.touch_users([(11, "B", "2026-11-12 10:00:00")])
+        o = await database.onboarding_stats("2026-11-09 00:00:00", "2026-11-15 12:00:00")
+        self.assertEqual(o, {"joined": 3, "activated": 1, "eligible": 3, "returned": 2})
+
+        nudge = await database.users_to_nudge("2026-11-01 00:00:00", "2026-11-12 09:00:00")
+        self.assertEqual([u for u, _ in nudge], [10, 12])               # B 12-noyabrda kirgan
+        await database.set_flag(12, "nudge")
+        await database.mark_bot_blocked([10])
+        self.assertEqual(await database.users_to_nudge("2026-11-01 00:00:00", "2026-11-12 09:00:00"), [])
+
     async def test_migrations_are_idempotent(self):
         await database.create_table()
         await database.create_table()
@@ -138,7 +163,7 @@ class PostgresDatabaseTests(_DatabaseContract, unittest.IsolatedAsyncioTestCase)
         self._env.start()
         db._pg_backend = None
         backend = database._db()
-        for table in ("users", "reminders", "form_sessions", "user_sections", "daily_activity", "schema_migrations"):
+        for table in ("users", "reminders", "form_sessions", "user_sections", "daily_activity", "user_flags", "schema_migrations"):
             await backend.execute(f"DROP TABLE IF EXISTS {table}")
         await database.create_table()
 

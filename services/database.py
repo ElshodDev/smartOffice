@@ -371,3 +371,79 @@ async def list_users(query: str = "", sort: str = "active", limit: int = 50, off
         *args, max(1, min(limit, 200)), max(0, offset),
     )
     return total, [_user_row(r) for r in rows]
+
+
+# ── Bir martalik belgilar (tanishuv, maslahatlar, qaytish eslatmasi) ───────
+async def set_flag(telegram_id: int, flag: str) -> bool:
+    """Belgi qo'yadi. Yangi bo'lsa True (oldin qo'yilgan bo'lsa False)."""
+    return await _db().execute(
+        "INSERT INTO user_flags (user_id, flag, created) VALUES (?, ?, ?) ON CONFLICT (user_id, flag) DO NOTHING",
+        telegram_id, flag, now_tashkent().strftime(DB_FORMAT),
+    ) == 1
+
+
+async def has_flag(telegram_id: int, flag: str) -> bool:
+    return await _db().fetchone("SELECT 1 FROM user_flags WHERE user_id = ? AND flag = ?", telegram_id, flag) is not None
+
+
+async def count_flags(telegram_id: int, prefix: str) -> int:
+    return await _count("SELECT COUNT(*) FROM user_flags WHERE user_id = ? AND flag LIKE ?", telegram_id, prefix + "%")
+
+
+async def flag_stats(prefix: str, since: str) -> list[tuple[str, int]]:
+    """Masalan, "onb:" — yangi kelganlar tanishuvda nimani tanlagani."""
+    rows = await _db().fetchall(
+        "SELECT flag, COUNT(*) FROM user_flags WHERE flag LIKE ? AND created >= ? GROUP BY flag ORDER BY COUNT(*) DESC",
+        prefix + "%", since,
+    )
+    return [(r[0][len(prefix):], int(r[1])) for r in rows]
+
+
+async def onboarding_stats(since: str, now: str) -> dict:
+    """`since` dan beri qo'shilganlar: birinchi sutkada bo'lim ishlatganlar va keyingi kunlarda qaytganlar."""
+    from datetime import datetime as _dt
+    rows = await _db().fetchall(
+        "SELECT u.telegram_id, u.joined_date, MIN(s.first_used) FROM users u "
+        "LEFT JOIN user_sections s ON s.user_id = u.telegram_id "
+        "WHERE u.joined_date >= ? GROUP BY u.telegram_id, u.joined_date", since,
+    )
+    last_days = dict(await _db().fetchall(
+        "SELECT d.user_id, MAX(d.day) FROM daily_activity d JOIN users u ON u.telegram_id = d.user_id "
+        "WHERE u.joined_date >= ? GROUP BY d.user_id", since,
+    ))
+
+    def parse(value):
+        try:
+            return _dt.fromisoformat(str(value)[:19])
+        except (TypeError, ValueError):
+            return None
+
+    now_dt = parse(now)
+    joined = activated = eligible = returned = 0
+    for uid, joined_date, first_used in rows:
+        j = parse(joined_date)
+        if j is None:
+            continue
+        joined += 1
+        f = parse(first_used)
+        if f is not None and (f - j).total_seconds() <= 86400:
+            activated += 1
+        # "Qaytdi" — qo'shilgan kunidan keyingi istalgan kunda yana faol bo'ldi (kamida 1 kun o'tganlar orasida)
+        if now_dt and (now_dt - j).days >= 1:
+            eligible += 1
+            if str(last_days.get(uid) or "") > str(joined_date)[:10]:
+                returned += 1
+    return {"joined": joined, "activated": activated, "eligible": eligible, "returned": returned}
+
+
+async def users_to_nudge(joined_after: str, inactive_before: str, limit: int = 500) -> list[tuple[int, str]]:
+    """Yaqinda qo'shilib, keyin qaytmaganlar — hali eslatma olmagan, botni bloklamagan."""
+    rows = await _db().fetchall(
+        "SELECT telegram_id, COALESCE(full_name, '') FROM users "
+        "WHERE joined_date >= ? AND COALESCE(last_active, joined_date) < ? "
+        "AND COALESCE(bot_blocked, 0) = 0 AND COALESCE(is_banned, 0) = 0 "
+        "AND telegram_id NOT IN (SELECT user_id FROM user_flags WHERE flag = 'nudge') "
+        "ORDER BY joined_date, telegram_id LIMIT ?",
+        joined_after, inactive_before, limit,
+    )
+    return [(r[0], r[1]) for r in rows]

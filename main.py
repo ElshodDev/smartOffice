@@ -80,6 +80,10 @@ def setup_dispatcher(dp: Dispatcher, bot: Bot) -> None:
 
     # ── Yangi lotin alifbosi: chiqayotgan xabarlar o'giriladi, bosilgan tugmalar asliga qaytariladi ──
     bot.session.middleware(AlphabetRequestMiddleware())
+    # Birinchi natijadan keyin bog'liq bo'lim haqida bitta maslahat (services/onboarding.py)
+    from config import ADMIN_ID
+    from services.onboarding import TipsRequestMiddleware
+    bot.session.middleware(TipsRequestMiddleware(int(ADMIN_ID) if ADMIN_ID and str(ADMIN_ID).isdigit() else None))
     preload_source_strings(glob.glob("handlers/*.py") + glob.glob("keyboards/*.py"))
     dp.message.outer_middleware(AlphabetInputMiddleware())
     # ── Faollik: har bir foydalanuvchi bazada saqlanadi; admin cheklaganlar to'xtatiladi ──

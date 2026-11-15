@@ -113,8 +113,13 @@ async def api_admin_dashboard(request: web.Request) -> web.Response:
         sections = [{"key": k, "title": convert(activity.SECTION_TITLES.get(k, k)), "users": u, "uses": n}
                     for k, u, n in await database.top_sections(since=week.strftime(DB_FORMAT), limit=14)]
         referrers = [{"id": uid, "name": name, "count": n} for uid, name, n in await database.top_referrers(5)]
+        from services.onboarding import CHOICES
+        titles = dict(CHOICES) | {"all": "🧭 Hammasini ko'rish"}
+        onboarding = await database.onboarding_stats(month.strftime(DB_FORMAT), now.strftime(DB_FORMAT))
+        onboarding["picks"] = [{"title": convert(titles.get(k, k)), "count": n}
+                               for k, n in await database.flag_stats("onb:", month.strftime(DB_FORMAT))]
         return web.json_response({
-            "stats": stats, "series": series, "sections": sections, "referrers": referrers,
+            "stats": stats, "series": series, "sections": sections, "referrers": referrers, "onboarding": onboarding,
             "ai": {"requests": ai_requests, "users": ai_users},
             "generated": now.strftime("%d.%m.%Y %H:%M"),
         })

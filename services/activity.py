@@ -62,6 +62,16 @@ def record_section(user_id: int, section: str) -> None:
         _pending_sections[key] += 1
 
 
+def last_section(user_id: int, within_seconds: float) -> str | None:
+    """Foydalanuvchi oxirgi marta ishlatgan bo'lim (agar yaqinda bo'lsa)."""
+    now = time.monotonic()
+    best, best_t = None, 0.0
+    for (uid, sec), t in _last_section_hit.items():
+        if uid == user_id and t > best_t and now - t <= within_seconds:
+            best, best_t = sec, t
+    return best
+
+
 def pending_sections_for(user_id: int) -> dict[str, int]:
     return {sec: n for (uid, sec), n in _pending_sections.items() if uid == user_id}
 

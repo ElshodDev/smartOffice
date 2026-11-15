@@ -87,6 +87,27 @@ def _period_starts():
             (day - timedelta(days=29)).strftime(DB_FORMAT))
 
 
+def _percent(part: int, whole: int) -> str:
+    return f"{round(part * 100 / whole)}%" if whole else "—"
+
+
+ONBOARDING_TITLES = {"all": "🧭 Hammasini ko'rish"}
+
+
+def onboarding_lines(o: dict, picks: list[tuple[str, int]]) -> list[str]:
+    """🚀 Yangi kelganlar (30 kun): tanishuv qanchalik ishlayapti."""
+    from services.onboarding import CHOICES
+    titles = dict(CHOICES) | ONBOARDING_TITLES
+    lines = ["", "🚀 <b>Yangi kelganlar (30 kun)</b>",
+             f"👋 Qo'shildi: <b>{o['joined']}</b>",
+             f"⚡️ Birinchi sutkada bo'lim ishlatdi: <b>{_percent(o['activated'], o['joined'])}</b> ({o['activated']} kishi)",
+             f"🔁 Keyingi kunlarda qaytdi: <b>{_percent(o['returned'], o['eligible'])}</b> ({o['returned']} / {o['eligible']})"]
+    if picks:
+        lines.append("🎯 «Nima qilmoqchisiz?» tanlovlari: " +
+                     ", ".join(f"{titles.get(k, k)} — {n}" for k, n in picks[:6]))
+    return lines
+
+
 async def build_stats_text() -> str:
     await activity.flush()
     day, week, month = _period_starts()
@@ -114,6 +135,8 @@ async def build_stats_text() -> str:
         lines += ["", "🤝 <b>Eng faol taklif qiluvchilar</b>"]
         for i, (uid, name, n) in enumerate(referrers, 1):
             lines.append(f"{i}. {esc(name) or uid} (<code>{uid}</code>) — {n} ta")
+    lines += onboarding_lines(await database.onboarding_stats(month, now_tashkent().strftime(DB_FORMAT)),
+                              await database.flag_stats("onb:", month))
     lines += ["", "<i>«Faol» — shu davrda botga kamida bir marta yozgan yoki tugma bosgan.</i>"]
     return "\n".join(lines)
 

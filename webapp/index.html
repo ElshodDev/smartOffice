@@ -143,6 +143,12 @@
     <span data-k="sectionsTitle">Mashhur bo'limlar (7 kun)</span>
     <span data-k="sectionLine">{u} kishi · {n} marta</span>
     <span data-k="referrersTitle">Eng faol taklif qiluvchilar</span>
+    <span data-k="onbTitle">Yangi kelganlar (30 kun)</span>
+    <span data-k="onbJoined">Qo'shildi</span>
+    <span data-k="onbActivated">Birinchi sutkada bo'lim ishlatdi</span>
+    <span data-k="onbReturned">Keyingi kunlarda qaytdi</span>
+    <span data-k="onbOf">{a} / {b} kishi</span>
+    <span data-k="onbPicks">«Nima qilmoqchisiz?» tanlovlari</span>
     <span data-k="noData">Hali ma'lumot yo'q</span>
     <span data-k="updated">Yangilangan: {t}</span>
     <span data-k="search">🔍 Ism yoki ID bo'yicha qidirish</span>
@@ -211,6 +217,10 @@
         <div class="legend"><span><i style="background:var(--primary)"></i><span id="lg-active"></span></span>
             <span><i style="background:var(--success)"></i><span id="lg-new"></span></span></div>
     </div>
+    <div class="title" id="t-onb"></div>
+    <div class="grid3" id="a-onb" style="padding-top:0"></div>
+    <p class="hint" id="t-picks" style="padding-top:12px"></p>
+    <div id="a-picks"></div>
     <div class="title" id="t-sections"></div>
     <div id="a-sections"></div>
     <div class="title" id="t-referrers"></div>
@@ -381,6 +391,22 @@ function renderDashboard(d) {
     $('t-chart').textContent = T('chartTitle');
     $('lg-active').textContent = T('legendActive'); $('lg-new').textContent = T('legendNew');
     renderChart(d.series);
+
+    const o = d.onboarding, pct = function (a, b) { return b ? Math.round(a * 100 / b) + '%' : '—'; };
+    $('t-onb').textContent = T('onbTitle');
+    const onb = $('a-onb'); onb.innerHTML = '';
+    onb.appendChild(statCard(T('onbJoined'), o.joined, 'blue'));
+    onb.appendChild(statCard(T('onbActivated'), pct(o.activated, o.joined), 'green', T('onbOf', {a: o.activated, b: o.joined})));
+    onb.appendChild(statCard(T('onbReturned'), pct(o.returned, o.eligible), 'violet', T('onbOf', {a: o.returned, b: o.eligible})));
+    const picks = $('a-picks'); picks.innerHTML = '';
+    $('t-picks').textContent = o.picks.length ? T('onbPicks') : '';
+    const maxPick = Math.max(1, ...o.picks.map(function (x) { return x.count; }));
+    o.picks.forEach(function (x) {
+        const row = h('div', 'hbar'), top = h('div', 'top');
+        top.appendChild(h('b', '', x.title)); top.appendChild(h('span', '', String(x.count)));
+        const bar = h('div', 'bar'), fill = h('div'); fill.style.width = Math.round(x.count * 100 / maxPick) + '%';
+        bar.appendChild(fill); row.appendChild(top); row.appendChild(bar); picks.appendChild(row);
+    });
 
     $('t-sections').textContent = T('sectionsTitle');
     const box = $('a-sections'); box.innerHTML = '';

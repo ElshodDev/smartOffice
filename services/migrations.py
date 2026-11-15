@@ -123,7 +123,24 @@ async def _migration_5(db: aiosqlite.Connection) -> None:
     await db.executescript(DAILY_ACTIVITY_SQL)
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3, _migration_4, _migration_5)
+USER_FLAGS_SQL = """
+    CREATE TABLE IF NOT EXISTS user_flags (
+        user_id BIGINT NOT NULL,
+        flag TEXT NOT NULL,
+        created TEXT,
+        PRIMARY KEY (user_id, flag)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_flags_flag ON user_flags (flag);
+"""
+
+
+async def _migration_6(db: aiosqlite.Connection) -> None:
+    """Bir martalik narsalar: tanishuv tanlovi, maslahatlar, eslatma xabari."""
+    await db.executescript(USER_FLAGS_SQL)
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3, _migration_4, _migration_5,
+                                     _migration_6)
 
 
 async def apply_migrations(db: aiosqlite.Connection) -> None:
@@ -184,6 +201,7 @@ PG_MIGRATIONS: tuple[str, ...] = (
     ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_blocked INTEGER DEFAULT 0;
     """ + SECTIONS_TABLE_SQL,
     DAILY_ACTIVITY_SQL,
+    USER_FLAGS_SQL,
 )
 
 

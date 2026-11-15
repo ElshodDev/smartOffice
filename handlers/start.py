@@ -66,14 +66,16 @@ async def cmd_start(message: Message, bot: Bot):
             pass
 
     if await check_sub(bot, message.from_user.id, use_cache=False):
-        await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=get_main_menu())
         # Web ilovadagi xaritadan: /start go_scan → shu bo'lim darhol ochiladi
         if len(args) > 1 and args[1].startswith("go_"):
             from handlers.ai_assistant import send_section
             from services import activity
+            await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=get_main_menu())
             key = args[1][3:]
             if await send_section(message, key):
                 activity.record_section(message.from_user.id, key)
+            return
+        await send_welcome(message, message.from_user)
     else:
         await message.answer(
             "Botdan to'liq foydalanish uchun kanalimizga obuna bo'ling!",
@@ -100,10 +102,40 @@ async def process_check_sub(callback_query: CallbackQuery, bot: Bot):
     
     if is_subscribed:
         await callback_query.message.delete()
-        await callback_query.message.answer(
-            WELCOME_TEXT,
-            parse_mode="HTML",
-            reply_markup=get_main_menu()
-        )
+        await send_welcome(callback_query.message, callback_query.from_user)
     else:
         await callback_query.answer("Siz hali kanalga obuna bo'lmagansiz!", show_alert=True)
+
+
+# ── 🚀 Birinchi tanishuv ───────────────────────────────────────────────────
+async def is_newcomer(user_id: int) -> bool:
+    """Hali birorta bo'limdan foydalanmagan bo'lsa — tanishuv ko'rsatiladi."""
+    from services import activity
+    from services.database import get_user_sections
+    return not (activity.pending_sections_for(user_id) or await get_user_sections(user_id))
+
+
+async def send_welcome(message: Message, user) -> None:
+    from services import onboarding
+    if await is_newcomer(user.id):
+        await message.answer(onboarding.greeting(user.first_name or user.full_name), parse_mode="HTML",
+                             reply_markup=get_main_menu())
+        await message.answer(onboarding.QUESTION, parse_mode="HTML", reply_markup=onboarding.choices_keyboard())
+    else:
+        await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=get_main_menu())
+
+
+@router.callback_query(F.data.startswith("onb:"))
+async def onboarding_choice(callback: CallbackQuery, state: FSMContext):
+    from handlers.ai_assistant import ai_help, send_section
+    from services import activity
+    from services.database import set_flag
+    key = callback.data.split(":", 1)[1]
+    await state.clear()
+    await set_flag(callback.from_user.id, f"onb:{key}")      # admin statistikasi: yangi kelganlar nimani tanlaydi
+    if key == "all":
+        await ai_help(callback)
+        return
+    await callback.answer()
+    if await send_section(callback.message, key):
+        activity.record_section(callback.from_user.id, key)
