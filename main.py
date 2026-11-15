@@ -45,7 +45,7 @@ from src.shared.settings import get_settings
 from src.modules.identity.application.queries import IdentityQueryService
 from src.modules.identity.infrastructure.sqlite import SqliteIdentityReadAdapter
 
-settings = get_settings()
+app_settings = get_settings()
 identity_queries = IdentityQueryService(SqliteIdentityReadAdapter())
 
 async def handle_ping(request):
@@ -53,7 +53,7 @@ async def handle_ping(request):
 
 async def api_stats(request: web.Request):
     try:
-        require_admin(request, settings)
+        require_admin(request, app_settings)
         statistics = await identity_queries.get_admin_statistics()
         return web.json_response(statistics)
     except web.HTTPException:
@@ -65,7 +65,7 @@ async def api_stats(request: web.Request):
 async def api_user_profile(request: web.Request):
     """Har bir foydalanuvchining o'z profilini ko'rishi uchun endpoint."""
     try:
-        authenticated_user_id = require_webapp_user(request, settings)
+        authenticated_user_id = require_webapp_user(request, app_settings)
         profile = await identity_queries.get_own_profile(authenticated_user_id)
         if not profile:
             return web.json_response({"error": "User not found"}, status=404)
