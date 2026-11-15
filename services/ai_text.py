@@ -1,33 +1,13 @@
 """
-Gemini orqali qisqa rasmiy matn yozish. Har qanday muammoda (kalit yo'q, tarmoq, vaqt tugadi,
-bo'sh yoki shubhali javob) None qaytaradi — chaqiruvchi tayyor shablonga o'tadi.
+Gemini orqali qisqa rasmiy matn yozish (hujjat yaratuvchi uchun). Har qanday muammoda
+(kalit yo'q, tarmoq, limit, bo'sh yoki shubhali javob) None qaytaradi — chaqiruvchi tayyor shablonga o'tadi.
 """
-import asyncio
 import logging
-import os
 import re
 
-GEMINI_MODEL = "gemini-3.5-flash"
-TIMEOUT_SECONDS = 25
+from services import gemini
+
 MAX_RESULT_CHARS = 2500
-
-_model = None
-_model_loaded = False
-
-
-def _get_model():
-    global _model, _model_loaded
-    if not _model_loaded:
-        _model_loaded = True
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                _model = genai.GenerativeModel(GEMINI_MODEL)
-            except Exception as e:
-                logging.warning(f"Gemini modelini yuklab bo'lmadi: {e}")
-    return _model
 
 
 def clean_ai_text(text: str) -> str | None:
@@ -46,12 +26,9 @@ def clean_ai_text(text: str) -> str | None:
 
 
 async def generate(prompt: str) -> str | None:
-    model = _get_model()
-    if model is None:
-        return None
     try:
-        response = await asyncio.wait_for(asyncio.to_thread(model.generate_content, prompt), TIMEOUT_SECONDS)
-        return clean_ai_text(getattr(response, "text", "") or "")
-    except Exception as e:  # tarmoq, vaqt tugashi, xavfsizlik filtri va h.k.
-        logging.warning(f"Gemini javob bermadi: {e}")
+        return clean_ai_text(await gemini.generate(prompt, max_tokens=1024, temperature=0.4))
+    except gemini.AIError as e:
+        if e.kind != "disabled":
+            logging.warning(f"Hujjat matnini AI yoza olmadi ({e.kind}) — shablon ishlatiladi")
         return None
