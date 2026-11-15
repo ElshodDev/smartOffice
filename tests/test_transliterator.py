@@ -12,6 +12,10 @@ class NewLatinTests(unittest.TestCase):
         self.assertEqual(to_new_latin("o'g'il"), "óǵil")
         self.assertEqual(to_new_latin("shahar choy"), "şahar çoy")
         self.assertEqual(to_new_latin("ming tong"), "miñ toñ")
+        # n + g qo'shimcha chegarasida — ikki alohida tovush, ñ bo'lmaydi
+        self.assertEqual(to_new_latin("Adminga menga cheklangan yuklangach"), "Adminga menga çeklangan yuklangaç")
+        self.assertEqual(to_new_latin("Keyingi bugungi Ingliz"), "Keyingi bugungi Ingliz")
+        self.assertEqual(to_new_latin("yangi dengiz sizning faylingiz so'nggi"), "yañi deñiz sizniñ fayliñiz sóñgi")
 
     def test_capitals(self):
         self.assertEqual(to_new_latin("O'zbekiston"), "Ózbekiston")

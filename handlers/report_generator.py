@@ -21,6 +21,7 @@ from services.excel_report import generate_excel
 from services.obyektivka_photo import make_photo
 from services.pdf_report import generate_pdf
 from services.tempfiles import new_job_dir, remove, safe_filename
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -168,7 +169,7 @@ async def _ask_relatives(message: Message, state: FSMContext, first: bool = Fals
                 "Qarindoshlarni birma-bir qo'shing: avval kimligini tanlang, so'ng ma'lumotini yozing.\n"
                 "Odatda: ota-ona, turmush o'rtog'i, farzandlar, aka-uka va opa-singillar, qaynota va qaynona.")
     else:
-        listing = "\n".join(f"{i}. {html.escape(r['rel'])} — {html.escape(r['name'])}" for i, r in enumerate(relatives, 1))
+        listing = "\n".join(f"{i}. {uesc(r['rel'])} — {uesc(r['name'])}" for i, r in enumerate(relatives, 1))
         text = f"✅ Qo'shildi. Ro'yxat:\n{listing}\n\nYana qarindosh qo'shing yoki davom eting 👇"
     await message.answer(text, parse_mode="HTML", reply_markup=_relations_keyboard(len(relatives)))
 

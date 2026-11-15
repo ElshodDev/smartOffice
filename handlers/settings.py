@@ -6,12 +6,14 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.exceptions import TelegramBadRequest
 
 from config import CHANNEL_ID
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
-BOT_VERSION = "3.0"
-BOT_NAME = "smartOffice"
-BOT_USERNAME = "@raqamli_ofis_bot"
+from services import botinfo
+
+BOT_VERSION = botinfo.VERSION
+BOT_NAME = botinfo.NAME
 
 FEATURES = [
     "📊 Excel — qirqish, bo'laklarga va ustun bo'yicha bo'lish, dublikat, birlashtirish, grafik, qidiruv",
@@ -50,13 +52,14 @@ async def build_settings_text(bot: Bot, user) -> str:
     return (
         f"⚙️ <b>Sozlamalar va profil</b>\n"
         f"{'─' * 28}\n\n"
-        f"👤 <b>Ism:</b> {html.escape(user.full_name)}\n"
+        f"👤 <b>Ism:</b> {uesc(user.full_name)}\n"
         f"🆔 <b>Telegram ID:</b> <code>{user.id}</code>\n"
-        f"📱 <b>Username:</b> {html.escape(username)}\n"
-        f"🌐 <b>Til:</b> {html.escape(lang)}\n\n"
+        f"📱 <b>Username:</b> {uesc(username)}\n"
+        f"🌐 <b>Telegram tili:</b> {html.escape(lang)}\n\n"
         f"📣 <b>Kanal obunasi:</b> {sub_status}\n"
         f"{'─' * 28}\n\n"
-        f"🤖 <b>Bot:</b> {BOT_NAME} {BOT_USERNAME}\n"
+        f"🔤 <b>Bot yozuvi:</b> yangi lotin alifbosi\n"
+        f"🤖 <b>Bot:</b> {BOT_NAME} @{botinfo.username()}\n"
         f"📦 <b>Versiya:</b> {BOT_VERSION}"
     )
 

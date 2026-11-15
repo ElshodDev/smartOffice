@@ -84,7 +84,7 @@ def to_latin(text: str) -> str:
 
 
 # ── Yangi lotin alifbosi (2021-yil loyihasi) ─────────────────────────────
-# o' → ó, g' → ǵ, sh → ş, ch → ç, ng → ñ
+# o' → ó, g' → ǵ, sh → ş, ch → ç, ng → ñ (faqat [ŋ] tovushi)
 
 # O'zbek tilida o'/g' harflari turli tutuq belgilari bilan yoziladi: ' ‘ ’ ʻ ʼ `
 _APOSTROPHES = "'‘’ʻʼ`"
@@ -93,15 +93,36 @@ _NEW_LATIN_RULES = [
     (re.compile(rf"([gG])[{_APOSTROPHES}]"), {"g": "ǵ", "G": "Ǵ"}),
     (re.compile(r"([sS])[hH]"), {"s": "ş", "S": "Ş"}),
     (re.compile(r"([cC])[hH]"), {"c": "ç", "C": "Ç"}),
-    (re.compile(r"([nN])[gG]"), {"n": "ñ", "N": "Ñ"}),
 ]
+
+# ng → ñ faqat bitta tovush [ŋ] bo'lganda: yangi, teng, rang, ming, -ning, -ngiz.
+# Qo'shimcha chegarasidagi n + g ikki alohida tovush va o'zgarmaydi:
+#   admin+ga, men+ga, qil-in+gan, yukla-n+gach  →  "ng" dan keyin unli a/o/u/e kelsa;
+#   keyin+gi, bugun+gi, oldin+gi, ingliz        →  alohida ro'yxat.
+_NG = re.compile(r"([nN])[gG](?![aeouAEOUóÓ])")
+# [ŋ] dan keyin unli keladigan o'zaklar: kengash, kengaytirish
+_NG_ROOT = re.compile(r"(?i)\b(ke)(n)g(a[şsy])")
+_NG_SEPARATE = re.compile(r"(?i)\b(keyin|bugun|oldin|kun|tun|ichkarin)(gi)|\b(i)(ngliz)")
+
+
+def _ng(text: str) -> str:
+    protected: list[str] = []
+
+    def keep(m: re.Match) -> str:
+        protected.append(m.group(0))
+        return f"\x00{len(protected) - 1}\x00"
+
+    text = _NG_SEPARATE.sub(keep, text)
+    text = _NG_ROOT.sub(lambda m: m.group(1) + ("ñ" if m.group(2) == "n" else "Ñ") + m.group(3), text)
+    text = _NG.sub(lambda m: "ñ" if m.group(1) == "n" else "Ñ", text)
+    return re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], text)
 
 
 def to_new_latin(text: str) -> str:
     """Hozirgi lotin yozuvidagi matnni yangi lotin alifbosiga o'giradi."""
     for pattern, mapping in _NEW_LATIN_RULES:
         text = pattern.sub(lambda m: mapping[m.group(1)], text)
-    return text
+    return _ng(text)
 
 
 def _iter_paragraphs(container):

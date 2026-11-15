@@ -13,6 +13,7 @@ from services.converter_service import (
 )
 from services.pdf_service import PdfService, parse_page_ranges
 from services.tempfiles import new_job_dir, remove, safe_filename
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -271,7 +272,7 @@ async def pdf_watermark_execute(message: Message, state: FSMContext):
             stem = safe_filename(os.path.splitext(data.get("original_name") or "")[0], "hujjat")
             await message.answer_document(
                 FSInputFile(out_path, filename=f"{stem}_wm.pdf"),
-                caption=f"✅ «{html.escape(wm_text)}» watermark qo'yildi!",
+                caption=f"✅ «{uesc(wm_text)}» watermark qo'yildi!",
                 parse_mode="HTML",
             )
             await msg.delete()

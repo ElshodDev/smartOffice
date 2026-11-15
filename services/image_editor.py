@@ -49,7 +49,8 @@ class ImageEditorService:
         return web.FileResponse(filepath)
 
     async def serve_form_editor(self, request: web.Request) -> web.Response:
-        return web.FileResponse("./webapp/editor.html")
+        from services.alphabet import load_page
+        return web.Response(text=load_page("./webapp/editor.html"), content_type="text/html")
 
     async def receive_edited_form(self, request: web.Request) -> web.Response:
         try:

@@ -42,11 +42,16 @@ def column_label(column) -> str:
     return text if len(text) <= MAX_BUTTON_TEXT else text[: MAX_BUTTON_TEXT - 1] + "…"
 
 
+def _raw(text: str) -> str:
+    from services.alphabet import raw
+    return raw(text)
+
+
 def column_keyboard(columns, prefix: str, extra_first: list | None = None) -> InlineKeyboardMarkup:
     """Har bir ustun uchun tugma: callback_data = f"{prefix}:{tartib_raqami}"."""
     rows = [list(extra_first)] if extra_first else []
     for index, column in enumerate(list(columns)[:MAX_COLUMN_BUTTONS]):
-        rows.append([InlineKeyboardButton(text=column_label(column), callback_data=f"{prefix}:{index}")])
+        rows.append([InlineKeyboardButton(text=_raw(column_label(column)), callback_data=f"{prefix}:{index}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -66,7 +71,9 @@ def too_many_columns_note(columns) -> str:
 
 
 def esc(value) -> str:
-    return html.escape(str(value))
+    """Foydalanuvchi faylidan olingan qiymat (ustun nomi va h.k.): HTML-xavfsiz, yangi lotinga o'girilmaydi."""
+    from services.alphabet import esc as _esc
+    return _esc(value)
 
 
 def unique_name(name: str, used: set[str]) -> str:

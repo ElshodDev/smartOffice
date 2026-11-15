@@ -62,6 +62,33 @@ class _DatabaseContract:
         self.assertIsNone(await database.get_form_session(expired))
         self.assertEqual(sorted(await database.cleanup_expired_form_sessions()), ["form.jpg", "old.jpg"])
 
+    async def test_activity_and_admin_stats(self):
+        await database.add_user(1, "Ali", None)
+        await database.add_user(2, "Vali", 1)
+        await database.touch_users([(2, "Vali", "2026-11-15 10:00:00"), (3, "Yangi odam", "2026-11-15 11:00:00")])
+        self.assertEqual(await database.get_users_count(), 3)            # /start bosmagan ham qo'shildi
+        await database.add_section_uses([(2, "pdf", 2, "2026-11-15 10:00:00"), (3, "pdf", 1, "2026-11-15 11:00:00"),
+                                         (2, "ocr", 1, "2026-11-15 10:00:00")])
+        await database.add_section_uses([(2, "pdf", 1, "2026-11-15 12:00:00")])
+        self.assertEqual(await database.get_user_sections(2), {"pdf": 3, "ocr": 1})
+        self.assertEqual((await database.get_user_profile(2))["usage_count"], 4)
+        self.assertEqual(await database.count_referrals(1), 1)
+        self.assertEqual(await database.top_sections(), [("pdf", 2, 4), ("ocr", 1, 1)])
+        self.assertEqual(await database.top_referrers(), [(1, "Ali", 1)])
+        stats = await database.admin_stats("2026-11-15 00:00:00", "2026-11-09 00:00:00", "2026-10-17 00:00:00")
+        self.assertEqual((stats["total"], stats["active_day"], stats["referred"]), (3, 2, 1))
+
+        await database.mark_bot_blocked([3])
+        self.assertTrue(await database.set_banned(2, True))
+        self.assertFalse(await database.set_banned(999, True))
+        self.assertEqual(await database.get_banned_ids(), {2})
+        self.assertEqual(await database.get_broadcast_targets(), [1])
+        await database.touch_users([(3, "Yangi odam", "2026-11-16 09:00:00")])   # qaytib keldi
+        self.assertEqual(sorted(await database.get_broadcast_targets()), [1, 3])
+        self.assertEqual([u["id"] for u in await database.find_users("vali")], [2])
+        self.assertEqual((await database.find_users("3"))[0]["name"], "Yangi odam")
+        self.assertEqual(len(await database.export_users()), 3)
+
     async def test_migrations_are_idempotent(self):
         await database.create_table()
         await database.create_table()
@@ -92,7 +119,7 @@ class PostgresDatabaseTests(_DatabaseContract, unittest.IsolatedAsyncioTestCase)
         self._env.start()
         db._pg_backend = None
         backend = database._db()
-        for table in ("users", "reminders", "form_sessions", "schema_migrations"):
+        for table in ("users", "reminders", "form_sessions", "user_sections", "schema_migrations"):
             await backend.execute(f"DROP TABLE IF EXISTS {table}")
         await database.create_table()
 

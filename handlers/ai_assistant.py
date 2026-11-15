@@ -17,6 +17,7 @@ from config import ADMIN_ID
 from services import gemini
 from services.ai_format import to_telegram, extract_sections, strip_html
 from services.converter_service import run_heavy, IMAGE_EXTENSIONS
+from services.alphabet import esc as uesc, raw as keep_raw
 
 router = Router()
 
@@ -252,7 +253,8 @@ async def _send_answer(message: Message, status: Message, raw: str, user_id: int
                        header: str = "", fallback_keys: list[str] | None = None):
     text, keys = extract_sections(raw, set(SECTIONS))
     keys = keys or (fallback_keys or [])
-    chunks = to_telegram(text)
+    # AI javobi o'zgartirilmaydi (yangi lotinga o'girilmaydi) — unda inglizcha so'zlar, kod bo'lishi mumkin
+    chunks = [keep_raw(c) for c in to_telegram(text)]
     if header:
         chunks[0] = f"<b>{html.escape(header, quote=False)}</b>\n\n{chunks[0]}"
     left = gemini.remaining(user_id, _is_admin(user_id))
@@ -400,7 +402,7 @@ async def ai_document(message: Message, state: FSMContext, bot: Bot):
         "majburiyatlar va e'tibor berish kerak bo'lgan joylar. Oxirida foydalanuvchi hujjat bo'yicha "
         "qanday savollar berishi mumkinligini 2-3 ta misol bilan ko'rsat.")
     note = " (hujjat juda uzun — faqat boshlang'ich qismi o'qildi)" if truncated else ""
-    await message.answer(f"📄 «{html.escape(doc.file_name)}» qabul qilindi{note}. Endi u bo'yicha savol berishingiz mumkin.",
+    await message.answer(f"📄 «{uesc(doc.file_name)}» qabul qilindi{note}. Endi u bo'yicha savol berishingiz mumkin.",
                          parse_mode="HTML")
     await _ask(message, state, [types.Part.from_text(text=question)], question)
 

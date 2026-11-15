@@ -12,6 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from config import ADMIN_ID
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -21,6 +22,7 @@ ID_MARKER = re.compile(r"🆔 ID:\s*(\d+)")
 ASK_TEXT = (
     "📞 <b>Adminga murojaat</b>\n\n"
     "Savolingiz, taklifingiz yoki buyurtmangizni batafsil yozib yuboring.\n"
+    "Xato chiqqan bo'lsa — ekran rasmini (skrinshot) ham yuborishingiz mumkin.\n"
     "<i>Xabaringiz to'g'ridan-to'g'ri adminga yetkaziladi, javob shu chatga keladi.</i>"
 )
 
@@ -49,12 +51,26 @@ async def start_feedback_cb(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FeedbackStates.waiting_for_feedback)
 
 
-@router.message(FeedbackStates.waiting_for_feedback, F.text)
+def _admin_header(user) -> str:
+    username = f"@{user.username}" if user.username else "yo'q"
+    return (
+        f"📩 <b>Yangi murojaat</b>\n\n"
+        f"👤 <b>Foydalanuvchi:</b> {uesc(user.full_name)}\n"
+        f"🆔 ID: <code>{user.id}</code>\n"
+        f"📱 <b>Username:</b> {uesc(username)}\n\n"
+    )
+
+
+REPLY_HINT = "<i>💬 Javob berish uchun shu xabarga Reply qiling (matn, rasm yoki fayl).</i>"
+MAX_CAPTION_TEXT = 600   # Telegram izoh (caption) chegarasi 1024 belgi
+
+
+@router.message(FeedbackStates.waiting_for_feedback, F.text | F.photo | F.document | F.voice | F.video)
 async def process_feedback(message: Message, state: FSMContext, bot: Bot):
-    text = message.text.strip()
-    if text.startswith("/"):
+    text = (message.text or message.caption or "").strip()
+    if message.text and text.startswith("/"):
         return
-    if len(text) > MAX_FEEDBACK:
+    if message.text and len(text) > MAX_FEEDBACK:
         await message.answer(f"❌ Xabar juda uzun ({len(text)} belgi). {MAX_FEEDBACK} belgigacha qisqartiring:")
         return
     if not ADMIN_ID:
@@ -62,19 +78,18 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot):
         await state.clear()
         return
 
-    user = message.from_user
-    username = f"@{user.username}" if user.username else "yo'q"
-    # Foydalanuvchi yozgan hamma narsa html.escape qilinadi — aks holda "<" yoki "&" xabarni buzadi
-    admin_text = (
-        f"📩 <b>Yangi murojaat</b>\n\n"
-        f"👤 <b>Foydalanuvchi:</b> {html.escape(user.full_name)}\n"
-        f"🆔 ID: <code>{user.id}</code>\n"
-        f"📱 <b>Username:</b> {html.escape(username)}\n\n"
-        f"{html.escape(text)}\n\n"
-        f"<i>💬 Javob berish uchun shu xabarga Reply qiling (matn, rasm yoki fayl).</i>"
-    )
+    # Foydalanuvchi yozgan hamma narsa esc() qilinadi — aks holda "<" yoki "&" xabarni buzadi
+    header = _admin_header(message.from_user)
     try:
-        await bot.send_message(chat_id=int(ADMIN_ID), text=admin_text, parse_mode="HTML")
+        if message.text:
+            await bot.send_message(chat_id=int(ADMIN_ID), text=f"{header}{uesc(text)}\n\n{REPLY_HINT}",
+                                   parse_mode="HTML")
+        else:
+            if len(text) > MAX_CAPTION_TEXT:
+                text = text[:MAX_CAPTION_TEXT] + "…"
+            await bot.copy_message(chat_id=int(ADMIN_ID), from_chat_id=message.chat.id,
+                                   message_id=message.message_id,
+                                   caption=f"{header}{uesc(text)}\n\n{REPLY_HINT}", parse_mode="HTML")
         await message.answer("✅ Murojaatingiz adminga yuborildi! Javob shu chatga keladi.")
     except Exception as e:
         logging.error(f"Adminga xabar yuborishda xato: {e}")

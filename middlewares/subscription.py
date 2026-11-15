@@ -3,23 +3,54 @@ from aiogram import BaseMiddleware, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest
 
+from cachetools import TTLCache
+
 from config import CHANNEL_ID
 from keyboards.inline import get_subscription_menu
 
 logger = logging.getLogger(__name__)
 
-async def check_sub(bot: Bot, user_id: int) -> bool:
+# Obuna bo'lganlar 10 daqiqa eslab qolinadi — har bir xabarda Telegram'dan qayta so'ralmaydi
+_subscribed: TTLCache = TTLCache(maxsize=50_000, ttl=600)
+_channel_url: list[str] = []
+
+
+async def check_sub(bot: Bot, user_id: int, use_cache: bool = True) -> bool:
     """Foydalanuvchi kanalga obuna bo'lganmi yoki yo'qligini tekshiradi."""
     if not CHANNEL_ID:
         return True
+    if use_cache and user_id in _subscribed:
+        return True
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        logger.info(f"Subscription check user={user_id} status={member.status}")
-        return member.status in ['member', 'administrator', 'creator']
+        ok = member.status in ("member", "administrator", "creator")
     except Exception as e:
         # Agar kanal topilmasa yoki xato bo'lsa — o'tkazib yubormaymiz
         logger.warning(f"Subscription check failed for user={user_id}: {e}")
         return False
+    if ok:
+        _subscribed[user_id] = True
+    return ok
+
+
+async def channel_url(bot: Bot) -> str:
+    """Kanal havolasi (bir marta aniqlanadi). Topilmasa — bo'sh satr (tugma ko'rsatilmaydi)."""
+    if _channel_url:
+        return _channel_url[0]
+    url = ""
+    try:
+        chat = await bot.get_chat(CHANNEL_ID)
+        if chat.username:
+            url = f"https://t.me/{chat.username}"
+        elif chat.invite_link:
+            url = chat.invite_link
+    except Exception as e:
+        logger.warning(f"Could not get chat info: {e}")
+    if not url and str(CHANNEL_ID).startswith("@"):
+        url = f"https://t.me/{str(CHANNEL_ID).lstrip('@')}"
+    if url:
+        _channel_url.append(url)
+    return url
 
 
 async def _send_sub_required(event, channel_url: str):
@@ -65,20 +96,7 @@ class SubscriptionMiddleware(BaseMiddleware):
         is_subscribed = await check_sub(bot, user_id)
 
         if not is_subscribed:
-            # Kanal URL ni aniqlaymiz
-            try:
-                chat = await bot.get_chat(CHANNEL_ID)
-                if chat.username:
-                    channel_url = f"https://t.me/{chat.username}"
-                elif chat.invite_link:
-                    channel_url = chat.invite_link
-                else:
-                    channel_url = ""
-            except Exception as e:
-                logger.warning(f"Could not get chat info: {e}")
-                channel_url = f"https://t.me/{CHANNEL_ID.lstrip('@')}"
-
-            await _send_sub_required(event, channel_url)
+            await _send_sub_required(event, await channel_url(bot))
             # Handler ga o'tmaymiz (bloklaymiz)
             return
 

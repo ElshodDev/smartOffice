@@ -61,6 +61,13 @@ class SqliteBackend:
             await db.commit()
             return cursor.rowcount
 
+    async def executemany(self, sql: str, rows: list[tuple]) -> None:
+        if not rows:
+            return
+        async with aiosqlite.connect(self.path) as db:
+            await db.executemany(sql, rows)
+            await db.commit()
+
     async def fetchall(self, sql: str, *args) -> list[tuple]:
         async with aiosqlite.connect(self.path) as db:
             async with db.execute(sql, args) as cursor:
@@ -102,6 +109,14 @@ class PostgresBackend:
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             return _rowcount(await conn.execute(_to_pg(sql), *args))
+
+    async def executemany(self, sql: str, rows: list[tuple]) -> None:
+        if not rows:
+            return
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.executemany(_to_pg(sql), rows)
 
     async def fetchall(self, sql: str, *args) -> list[tuple]:
         pool = await self._get_pool()

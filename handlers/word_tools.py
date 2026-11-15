@@ -19,6 +19,7 @@ from services.docx_template import (
 from services.excel_common import is_excel, size_error, read_table, column_keyboard, esc
 from services.mass_fill import MAX_ROWS, make_sample_excel, match_columns, generate_documents
 from services.tempfiles import new_job_dir, remove, safe_filename
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -112,10 +113,10 @@ async def receive_template(message: Message, state: FSMContext, bot: Bot):
     await state.update_data(job_dir=job_dir, template_path=path, original_name=message.document.file_name,
                             placeholders=placeholders)
     shown = placeholders[:MAX_PLACEHOLDERS_SHOWN]
-    listing = "\n".join(f"  • <code>{html.escape(p)}</code>" for p in shown)
+    listing = "\n".join(f"  • <code>{uesc(p)}</code>" for p in shown)
     if len(placeholders) > len(shown):
         listing += f"\n  … va yana {len(placeholders) - len(shown)} ta"
-    example = "\n".join(f"{html.escape(p)}: ..." for p in placeholders[:3])
+    example = "\n".join(f"{uesc(p)}: ..." for p in placeholders[:3])
     await message.answer(
         f"✅ Shablon qabul qilindi! <b>{len(placeholders)}</b> ta o'zgaruvchi topildi:\n{listing}\n\n"
         "Endi qiymatlarni <b>nom: qiymat</b> ko'rinishida, har birini yangi qatorda yuboring.\n\n"
@@ -213,10 +214,10 @@ async def read_word_file(message: Message, state: FSMContext, bot: Bot):
             return
         # Matn foydalanuvchi faylidan — HTML sifatida emas, oddiy matn sifatida yuboriladi,
         # shunda "A & B" yoki "<...>" kabi belgilar xabarni buzmaydi.
-        header = f"📄 {message.document.file_name}\n{'─' * 28}\n\n"
+        header = f"📄 {raw(message.document.file_name)}\n{'─' * 28}\n\n"
         chunks, rest = [], header + full_text
         while rest:
-            chunks.append(rest[:TELEGRAM_LIMIT])
+            chunks.append(raw(rest[:TELEGRAM_LIMIT]))
             rest = rest[TELEGRAM_LIMIT:]
         await msg.edit_text(chunks[0])
         for chunk in chunks[1:]:
@@ -359,7 +360,7 @@ async def mass_template(message: Message, state: FSMContext, bot: Bot):
     await state.update_data(job_dir=job_dir, template_path=path, placeholders=placeholders,
                             original_name=message.document.file_name)
     await state.set_state(WordToolsStates.mass_waiting_excel)
-    listing = ", ".join(f"<code>{html.escape(p)}</code>" for p in placeholders[:MAX_PLACEHOLDERS_SHOWN])
+    listing = ", ".join(f"<code>{uesc(p)}</code>" for p in placeholders[:MAX_PLACEHOLDERS_SHOWN])
     await message.answer_document(
         FSInputFile(sample),
         caption=(
@@ -403,7 +404,7 @@ async def mass_excel(message: Message, state: FSMContext, bot: Bot):
         await message.answer(
             "❌ Jadval ustunlari shablondagi o'zgaruvchilarga mos kelmadi.\n"
             "Ustun nomlari shablondagi nomlar bilan bir xil bo'lishi kerak: "
-            + ", ".join(f"<code>{html.escape(p)}</code>" for p in data["placeholders"]),
+            + ", ".join(f"<code>{uesc(p)}</code>" for p in data["placeholders"]),
             parse_mode="HTML",
         )
         return

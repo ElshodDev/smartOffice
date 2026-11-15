@@ -15,6 +15,7 @@ from services.transliterator import (
     transliterate_docx, docx_has_text,
 )
 from services.converter_service import ConverterService, ConversionError, run_heavy
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -140,7 +141,7 @@ async def convert_text(message: Message, state: FSMContext):
         # Natijani oddiy matn sifatida yuboramiz: foydalanuvchi matnidagi * _ ` kabi
         # belgilar Markdown sifatida talqin qilinib, xabarni buzmasligi uchun.
         await msg.edit_text(
-            f"Natija:\n\n{result}\n\n"
+            f"Natija:\n\n{raw(result)}\n\n"
             "Yana matn yoki fayl yuborishingiz yoki bosh menyudan boshqa bo'limni tanlashingiz mumkin."
         )
     except Exception as e:

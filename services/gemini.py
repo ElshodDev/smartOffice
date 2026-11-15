@@ -142,3 +142,10 @@ def refund(user_id: int) -> None:
     usage = _usage.get(user_id)
     if usage and usage.count > 0:
         usage.count -= 1
+
+
+def usage_today() -> tuple[int, int]:
+    """Bugun: (AI so'rovlari soni, foydalanuvchilar soni). Admin so'rovlari hisobga olinmaydi."""
+    today = _today()
+    counts = [u.count for u in _usage.values() if u.day == today and u.count]
+    return sum(counts), len(counts)

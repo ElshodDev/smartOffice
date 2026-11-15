@@ -13,6 +13,7 @@ from services.converter_service import run_heavy
 from services.excel_common import is_excel, size_error, read_table
 from services.mass_fill import format_cell
 from services.tempfiles import new_job_dir, remove, safe_filename
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -120,7 +121,7 @@ async def process_search_query(message: Message, state: FSMContext):
     data = await state.get_data()
     stem = safe_filename(os.path.splitext(data.get("original_name") or "")[0], "jadval")
     out_path = os.path.join(data["job_dir"], f"{stem}_qidiruv.xlsx")
-    q = html.escape(query)
+    q = uesc(query)
     try:
         count, rows = await run_heavy(_search, data["file_path"], query, out_path)
     except Exception:
@@ -144,7 +145,7 @@ async def process_search_query(message: Message, state: FSMContext):
 
     lines = [f"✅ «{q}» bo'yicha <b>{count}</b> ta natija:\n"]
     for row in rows:
-        lines.append("▫️ " + " | ".join(f"<b>{html.escape(c)}:</b> {html.escape(v)}" for c, v in row))
+        lines.append("▫️ " + " | ".join(f"<b>{uesc(c)}:</b> {uesc(v)}" for c, v in row))
     text = "\n".join(lines)
     if len(text) > TELEGRAM_LIMIT:
         text = text[:TELEGRAM_LIMIT].rsplit("\n", 1)[0] + "\n…"

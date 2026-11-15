@@ -83,7 +83,31 @@ async def _migration_3(db: aiosqlite.Connection) -> None:
     )
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3)
+async def _migration_4(db: aiosqlite.Connection) -> None:
+    """Faollik, bloklash va bo'limlar statistikasi."""
+    async with db.execute("PRAGMA table_info(users)") as cursor:
+        columns = {row[1] for row in await cursor.fetchall()}
+    for name, ddl in (("last_active", "TEXT"), ("is_banned", "INTEGER DEFAULT 0"), ("bot_blocked", "INTEGER DEFAULT 0")):
+        if name not in columns:
+            await db.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+    await db.executescript(SECTIONS_TABLE_SQL)
+
+
+SECTIONS_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS user_sections (
+        user_id BIGINT NOT NULL,
+        section TEXT NOT NULL,
+        uses INTEGER NOT NULL DEFAULT 0,
+        first_used TEXT,
+        last_used TEXT,
+        PRIMARY KEY (user_id, section)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_sections_last ON user_sections (last_used);
+    CREATE INDEX IF NOT EXISTS idx_users_referrer ON users (referrer_id);
+"""
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_1, _migration_2, _migration_3, _migration_4)
 
 
 async def apply_migrations(db: aiosqlite.Connection) -> None:
@@ -138,6 +162,11 @@ PG_MIGRATIONS: tuple[str, ...] = (
     );
     CREATE INDEX IF NOT EXISTS idx_form_sessions_expiry ON form_sessions (expires_at);
     """,
+    """
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned INTEGER DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_blocked INTEGER DEFAULT 0;
+    """ + SECTIONS_TABLE_SQL,
 )
 
 

@@ -9,6 +9,7 @@ from aiogram.fsm.state import StatesGroup, State
 
 from services.database import add_reminder, get_user_reminders, delete_reminder
 from services.timeutil import now_tashkent, parse_user_time, DB_FORMAT, SHOW_FORMAT
+from services.alphabet import esc as uesc, raw
 
 router = Router()
 
@@ -100,7 +101,7 @@ async def save_reminder(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"✅ <b>Eslatma saqlandi!</b>\n\n"
-        f"📝 {html.escape(data.get('reminder_text', ''))}\n"
+        f"📝 {uesc(data.get('reminder_text', ''))}\n"
         f"🕒 <b>{target.strftime(SHOW_FORMAT)}</b> da eslataman.",
         parse_mode="HTML",
         reply_markup=get_reminders_menu(),
@@ -119,7 +120,7 @@ async def _render_list(message: Message, user_id: int):
         except ValueError:
             when = str(run_date)[:16]
         short = text if len(text) <= 60 else text[:59] + "…"
-        lines.append(f"{number}. 🕒 <b>{when}</b> — {html.escape(short)}")
+        lines.append(f"{number}. 🕒 <b>{when}</b> — {uesc(short)}")
         buttons.append([InlineKeyboardButton(text=f"🗑 {number}-ni o'chirish", callback_data=f"rem_del:{rem_id}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="reminders_menu")])
     await message.edit_text("\n".join(lines), parse_mode="HTML",
