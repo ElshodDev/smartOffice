@@ -121,6 +121,10 @@
     <span data-k="copied">✅ Nusxalandi</span>
     <span data-k="inviteMsg">Ofis ishlari uchun qulay bot: Excel, PDF, Word, skaner, ariza va hujjatlar tayyorlash 👇</span>
     <span data-k="back">← Botga qaytish</span>
+    <span data-k="projectsTitle">Muallifning boshqa loyihalari</span>
+    <span data-k="portfolioTitle">Portfolio (30 kun)</span>
+    <span data-k="portfolioOpens">{n} kishi ochdi</span>
+    <span data-k="portfolioOrders">📩 Buyurtmalar: {n} ta</span>
     <span data-k="tabStats">📊 Statistika</span>
     <span data-k="tabUsers">👥 Foydalanuvchilar</span>
     <span data-k="tabMe">👤 Men</span>
@@ -205,6 +209,8 @@
             <button class="btn ghost" id="btn-copy"></button>
         </div>
     </div>
+    <div class="title" id="t-projects"></div>
+    <div class="list" id="u-projects"></div>
     <button class="btn btn-wide ghost" id="btn-back"></button>
 </div>
 
@@ -225,6 +231,9 @@
     <div id="a-sections"></div>
     <div class="title" id="t-referrers"></div>
     <div class="list" id="a-referrers"></div>
+    <div class="title" id="t-portfolio"></div>
+    <div id="a-portfolio"></div>
+    <p class="hint" id="a-orders"></p>
     <div class="footer" id="a-updated"></div>
 </div>
 
@@ -353,6 +362,20 @@ function renderMe(me) {
         const done = function () { $('btn-copy').textContent = T('copied'); };
         if (navigator.clipboard) navigator.clipboard.writeText(me.invite_link).then(done, done); else done();
     };
+    // Muallifning loyihalari — tashqi brauzerda ochiladi
+    $('t-projects').textContent = (me.projects || []).length ? T('projectsTitle') : '';
+    const projects = $('u-projects'); projects.innerHTML = '';
+    (me.projects || []).forEach(function (p) {
+        const card = h('button', 'u-card');
+        card.style.width = '100%'; card.style.textAlign = 'left'; card.style.color = 'var(--text)'; card.style.cursor = 'pointer';
+        const icon = h('div', 'u-avatar', p.emoji); icon.style.background = 'var(--card2)'; icon.style.fontSize = '20px';
+        const info = h('div', 'u-info');
+        info.appendChild(h('div', 'u-name', p.name));
+        info.appendChild(h('div', 'u-meta', p.desc));
+        card.appendChild(icon); card.appendChild(info); card.appendChild(h('span', '', '↗'));
+        card.onclick = function () { tg.openLink(p.url); };
+        projects.appendChild(card);
+    });
     $('btn-back').textContent = T('back');
     $('btn-back').onclick = function () { tg.close(); };
 }
@@ -425,6 +448,18 @@ function renderDashboard(d) {
     const refs = $('a-referrers'); refs.innerHTML = '';
     if (!d.referrers.length) refs.appendChild(h('p', 'empty', T('noData')));
     d.referrers.forEach(function (r) { refs.appendChild(userCard({id: r.id, name: r.name}, '👥 ' + r.count)); });
+    const pf = d.portfolio || {opens: [], orders: 0};
+    $('t-portfolio').textContent = T('portfolioTitle');
+    const pbox = $('a-portfolio'); pbox.innerHTML = '';
+    const maxOpen = Math.max(1, ...pf.opens.map(function (x) { return x.count; }));
+    if (!pf.opens.length) pbox.appendChild(h('p', 'empty', T('noData')));
+    pf.opens.forEach(function (x) {
+        const row = h('div', 'hbar'), top = h('div', 'top');
+        top.appendChild(h('b', '', x.name)); top.appendChild(h('span', '', T('portfolioOpens', {n: x.count})));
+        const bar = h('div', 'bar'), fill = h('div'); fill.style.width = Math.round(x.count * 100 / maxOpen) + '%';
+        bar.appendChild(fill); row.appendChild(top); row.appendChild(bar); pbox.appendChild(row);
+    });
+    $('a-orders').textContent = T('portfolioOrders', {n: pf.orders});
     $('a-updated').textContent = T('updated', {t: d.generated});
 }
 

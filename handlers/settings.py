@@ -94,6 +94,8 @@ async def show_about(callback: CallbackQuery):
     await callback.message.edit_text(
         about, parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="💻 Muallifning loyihalari", callback_data="dev_contact")
+        ], [
             InlineKeyboardButton(text="⬅️ Orqaga", callback_data="settings_refresh")
         ]]),
     )

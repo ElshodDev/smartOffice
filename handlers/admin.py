@@ -108,6 +108,18 @@ def onboarding_lines(o: dict, picks: list[tuple[str, int]]) -> list[str]:
     return lines
 
 
+async def portfolio_lines(since: str) -> list[str]:
+    """💻 Portfolio (30 kun): loyihalarni necha kishi ochdi, nechta buyurtma keldi."""
+    from services.alphabet import raw
+    from services.portfolio import PROJECTS
+    opens = dict(await database.flag_stats("proj:", since))
+    orders = sum(n for _, n in await database.flag_stats("order:", since))
+    parts = [f"{emoji} {raw(name)} — {opens.get(key, 0)}" for key, emoji, name, _, _ in PROJECTS]
+    return ["", "💻 <b>Portfolio (30 kun)</b>",
+            "👀 Loyihalarni ochganlar: " + ", ".join(parts),
+            f"📩 Buyurtmalar: <b>{orders}</b>"]
+
+
 async def build_stats_text() -> str:
     await activity.flush()
     day, week, month = _period_starts()
@@ -137,6 +149,7 @@ async def build_stats_text() -> str:
             lines.append(f"{i}. {esc(name) or uid} (<code>{uid}</code>) — {n} ta")
     lines += onboarding_lines(await database.onboarding_stats(month, now_tashkent().strftime(DB_FORMAT)),
                               await database.flag_stats("onb:", month))
+    lines += await portfolio_lines(month)
     lines += ["", "<i>«Faol» — shu davrda botga kamida bir marta yozgan yoki tugma bosgan.</i>"]
     return "\n".join(lines)
 

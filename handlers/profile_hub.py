@@ -91,7 +91,7 @@ async def build_profile(user) -> tuple[str, InlineKeyboardMarkup]:
          InlineKeyboardButton(text=f"🔗 Do'stlarni taklif qilish", callback_data="share_bot")],
         [InlineKeyboardButton(text="⚙️ Sozlamalar va bot haqida", callback_data="hub_settings")],
         [InlineKeyboardButton(text="📞 Adminga murojaat", callback_data="feedback_start"),
-         InlineKeyboardButton(text="💻 Dasturchi", callback_data="dev_contact")],
+         InlineKeyboardButton(text="💻 Dasturchi loyihalari", callback_data="dev_contact")],
     ]
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
 

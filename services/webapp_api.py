@@ -60,6 +60,12 @@ def _catalog() -> list[dict]:
     return items
 
 
+def _projects(user_id: int) -> list[dict]:
+    from services.portfolio import PROJECTS, tracked_url
+    return [{"emoji": emoji, "name": name, "desc": convert(desc), "url": tracked_url(key, user_id)}
+            for key, emoji, name, _, desc in PROJECTS]
+
+
 async def api_me(request: web.Request) -> web.Response:
     user_id = require_webapp_user(request, get_settings())
     try:
@@ -88,6 +94,7 @@ async def api_me(request: web.Request) -> web.Response:
             "invite_link": f"https://t.me/{botinfo.username()}?start={user_id}",
             "bot_username": botinfo.username(),
             "is_admin": _is_admin(user_id),
+            "projects": _projects(user_id),
         })
     except Exception:
         logging.exception("Web ilova: /api/me xatosi")
@@ -116,10 +123,17 @@ async def api_admin_dashboard(request: web.Request) -> web.Response:
         from services.onboarding import CHOICES
         titles = dict(CHOICES) | {"all": "🧭 Hammasini ko'rish"}
         onboarding = await database.onboarding_stats(month.strftime(DB_FORMAT), now.strftime(DB_FORMAT))
+        from services.portfolio import PROJECTS
+        names = {k: n for k, _, n, _, _ in PROJECTS}
+        portfolio = {
+            "opens": [{"name": names.get(k, k), "count": n} for k, n in await database.flag_stats("proj:", month.strftime(DB_FORMAT))],
+            "orders": sum(n for _, n in await database.flag_stats("order:", month.strftime(DB_FORMAT))),
+        }
         onboarding["picks"] = [{"title": convert(titles.get(k, k)), "count": n}
                                for k, n in await database.flag_stats("onb:", month.strftime(DB_FORMAT))]
         return web.json_response({
             "stats": stats, "series": series, "sections": sections, "referrers": referrers, "onboarding": onboarding,
+            "portfolio": portfolio,
             "ai": {"requests": ai_requests, "users": ai_users},
             "generated": now.strftime("%d.%m.%Y %H:%M"),
         })
@@ -146,7 +160,24 @@ async def api_admin_users(request: web.Request) -> web.Response:
         return web.json_response({"error": "Internal server error"}, status=500)
 
 
+async def project_redirect(request: web.Request) -> web.Response:
+    """/p/KALIT?u=ID — loyiha ochilganini hisoblaydi va saytga yo'naltiradi."""
+    from services.portfolio import PROJECT_URLS
+    key = request.match_info.get("key", "")
+    url = PROJECT_URLS.get(key)
+    if not url:
+        raise web.HTTPNotFound()
+    user = request.query.get("u", "")
+    if user.isdigit() and len(user) <= 15:
+        try:
+            await database.set_flag(int(user), f"proj:{key}")
+        except Exception:
+            logging.exception("Loyiha ochilishini yozib bo'lmadi")
+    raise web.HTTPFound(url)
+
+
 def setup_routes(app: web.Application) -> None:
+    app.router.add_get("/p/{key}", project_redirect)
     app.router.add_get("/api/me", api_me)
     app.router.add_get("/api/admin/dashboard", api_admin_dashboard)
     app.router.add_get("/api/admin/users", api_admin_users)
