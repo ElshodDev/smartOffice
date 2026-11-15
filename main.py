@@ -81,7 +81,7 @@ async def index(request):
     return web.FileResponse('./webapp/index.html')
 
 async def start_dummy_server(bot):
-    image_editor = ImageEditorService(bot, settings)
+    image_editor = ImageEditorService(bot, app_settings)
     app = web.Application(client_max_size=10 * 1024 * 1024)
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/api/stats", api_stats)
